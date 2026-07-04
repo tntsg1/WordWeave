@@ -84,9 +84,9 @@ def delete_wordlist(name):
 
 def generate_story(words):
     word_list = ', '.join(words)
-    system_prompt = """You are a creative English writer. Write a short, engaging story (150-300 words) in natural English.
+    system_prompt = """You are a creative English writer. Write a short, engaging story (100-180 words) in natural English.
 The story MUST naturally incorporate ALL of the provided vocabulary words.
-Make the story coherent, interesting, and appropriate for a high school student.
+Make the story coherent and interesting.
 
 After the story, provide:
 1. Chinese translation for each vocabulary word used
@@ -103,7 +103,8 @@ IMPORTANT:
 - The story text must NOT contain any markdown, HTML tags, or special formatting. Just plain English text.
 - Each word in "translations" must match exactly the words provided.
 - Word translations should be concise (2-6 characters).
-- "chinese" should be a natural, paragraph-length Chinese translation of the entire story."""
+- "chinese" should be a natural, paragraph-length Chinese translation of the entire story.
+- Keep the story SHORT and CONCISE. 100-180 words is ideal."""
 
     user_prompt = f"Vocabulary words to use: {word_list}\n\nWrite a story that naturally includes ALL of these words. Make it interesting and natural-sounding."
 
@@ -114,7 +115,7 @@ IMPORTANT:
             {"role": "user", "content": user_prompt}
         ],
         "temperature": 0.9,
-        "max_tokens": 2000
+        "max_tokens": 800
     }
 
     req = urllib.request.Request(
@@ -152,14 +153,21 @@ def format_story(story_text, words, translations):
     for word in sorted_words:
         zh = translations.get(word, translations.get(word.lower(), ''))
         pattern = re.compile(r'\b(' + re.escape(word) + r')\b', re.IGNORECASE)
-        story_html = pattern.sub(r'<b>\1</b>', story_html)
+        # English section: bold + clickable
+        story_html = pattern.sub(
+            lambda m, z=zh: f'<b class="vocab" data-zh="{z}" onclick="showPopup(event, this)">{m.group(1)}</b>',
+            story_html
+        )
         if zh:
             translation_html = pattern.sub(
-                lambda m: f'<b class="vocab" data-zh="{zh}" onclick="showPopup(event, this)">{m.group(1)}</b><span class="zh">（{zh}）</span>',
+                lambda m, z=zh: f'<b class="vocab" data-zh="{z}" onclick="showPopup(event, this)">{m.group(1)}</b><span class="zh">（{z}）</span>',
                 translation_html
             )
         else:
-            translation_html = pattern.sub(r'<b>\1</b>', translation_html)
+            translation_html = pattern.sub(
+                lambda m: f'<b class="vocab" data-zh="" onclick="showPopup(event, this)">{m.group(1)}</b>',
+                translation_html
+            )
     return story_html, translation_html
 
 
