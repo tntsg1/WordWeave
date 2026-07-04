@@ -93,11 +93,7 @@ h1{font-size:1.7rem;color:var(--head)}
 
     <div style="text-align:left;margin-bottom:12px;">
       <label style="color:var(--dim);font-size:.85rem;">供应商</label>
-      <select id="providerSelect" onchange="onProviderChange()" style="width:100%;padding:8px;margin-top:4px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;font-size:.9rem;">
-        <option value="deepseek">DeepSeek</option>
-        <option value="openai">OpenAI</option>
-        <option value="custom">自定义 (OpenAI 兼容)</option>
-      </select>
+      <select id="providerSelect" onchange="onProviderChange()" style="width:100%;padding:8px;margin-top:4px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;font-size:.9rem;"></select>
     </div>
 
     <div id="customUrlRow" class="hidden" style="text-align:left;margin-bottom:12px;">
@@ -1931,19 +1927,38 @@ let currentList = localStorage.getItem('dw_list') || 'TD_SAT_Golden_Words';
 let grammarLoaded = false;
 
 const MODEL_PRESETS = {
-  deepseek: ['deepseek-chat', 'deepseek-reasoner'],
-  openai: ['gpt-4o-mini', 'gpt-4o', 'gpt-4.1-nano'],
-  custom: []
+  deepseek: { base: 'https://api.deepseek.com/v1', models: ['deepseek-chat', 'deepseek-reasoner'] },
+  openai: { base: 'https://api.openai.com/v1', models: ['gpt-4.1-nano', 'gpt-4o-mini', 'gpt-4o', 'o4-mini'] },
+  claude: { base: 'https://api.anthropic.com/v1', models: ['claude-3-haiku', 'claude-3.5-sonnet', 'claude-opus-4'] },
+  grok: { base: 'https://api.x.ai/v1', models: ['grok-3-mini', 'grok-3'] },
+  gemini: { base: 'https://generativelanguage.googleapis.com/v1beta/openai', models: ['gemini-2.5-flash', 'gemini-2.5-pro'] },
+  glm: { base: 'https://open.bigmodel.cn/api/paas/v4', models: ['glm-4-flash', 'glm-4-plus', 'glm-4.5'] },
+  minimax: { base: 'https://api.minimax.chat/v1', models: ['abab7-chat', 'abab6.5s-chat'] },
+  moonshot: { base: 'https://api.moonshot.cn/v1', models: ['moonshot-v1-8k', 'moonshot-v1-32k', 'moonshot-v1-128k'] },
+  qwen: { base: 'https://dashscope.aliyuncs.com/compatible-mode/v1', models: ['qwen3-235b-a22b', 'qwen-plus', 'qwen-turbo'] },
+  stepfun: { base: 'https://api.stepfun.com/v1', models: ['step-2-16k', 'step-1-flash'] },
+  yi: { base: 'https://api.lingyiwanwu.com/v1', models: ['yi-large', 'yi-medium', 'yi-lightning'] },
+  baidu: { base: 'https://qianfan.baidubce.com/v2', models: ['ernie-4.5-8k', 'ernie-speed-8k'] },
+  siliconflow: { base: 'https://api.siliconflow.cn/v1', models: ['deepseek-ai/DeepSeek-V3', 'Qwen/Qwen3-235B-A22B', 'Pro/ZhipuAI/GLM-4.5'] },
+  custom: { base: '', models: [] }
+};
+
+const PROVIDER_NAMES = {
+  deepseek: 'DeepSeek', openai: 'OpenAI', claude: 'Anthropic Claude',
+  grok: 'xAI Grok', gemini: 'Google Gemini', glm: '智谱 GLM',
+  minimax: 'MiniMax', moonshot: 'Moonshot (Kimi)', qwen: '阿里通义千问',
+  stepfun: '阶跃星辰', yi: '零一万物 Yi', baidu: '百度文心',
+  siliconflow: '硅基流动 (多模型)', custom: '自定义 (OpenAI 兼容)'
 };
 
 function getBaseUrl() {
-  if (apiProvider === 'deepseek') return 'https://api.deepseek.com/v1';
-  if (apiProvider === 'openai') return 'https://api.openai.com/v1';
-  return apiBase || 'https://api.openai.com/v1';
+  if (apiProvider === 'custom') return apiBase;
+  return MODEL_PRESETS[apiProvider]?.base || 'https://api.openai.com/v1';
 }
 
 function getModel() {
-  return apiModel || MODEL_PRESETS[apiProvider]?.[0] || 'deepseek-chat';
+  if (apiModel) return apiModel;
+  return MODEL_PRESETS[apiProvider]?.models?.[0] || 'deepseek-chat';
 }
 
 // ====== API CALL ======
@@ -2011,7 +2026,8 @@ function checkSetup() {
 }
 
 function populateSettings() {
-  document.getElementById('providerSelect').value = apiProvider;
+  const sel = document.getElementById('providerSelect');
+  sel.innerHTML = Object.entries(PROVIDER_NAMES).map(([k,v]) => `<option value="${k}" ${k===apiProvider?'selected':''}>${v}</option>`).join('');
   document.getElementById('apiKeyInput').value = apiKey || '';
   document.getElementById('customBaseUrl').value = apiBase || '';
   onProviderChange();
@@ -2021,9 +2037,9 @@ function onProviderChange() {
   const p = document.getElementById('providerSelect').value;
   document.getElementById('customUrlRow').classList.toggle('hidden', p !== 'custom');
   const sel = document.getElementById('modelSelect');
-  const presets = MODEL_PRESETS[p] || [];
-  sel.innerHTML = (p === 'custom' ? ['gpt-4o-mini', 'gpt-4o', 'deepseek-chat', 'claude-3-haiku'] : presets)
-    .map(m => `<option value="${m}" ${m === apiModel ? 'selected' : ''}>${m}</option>`).join('');
+  const presets = MODEL_PRESETS[p]?.models || [];
+  const models = p === 'custom' ? ['gpt-4o-mini', 'gpt-4o', 'deepseek-chat', 'claude-3.5-sonnet', 'gemini-2.5-flash'] : presets;
+  sel.innerHTML = models.map(m => `<option value="${m}" ${m===apiModel?'selected':''}>${m}</option>`).join('');
   if (p === 'custom') sel.innerHTML += '<option value="__other__">其他（手动输入）</option>';
 }
 
