@@ -338,60 +338,69 @@ PAGE_HTML = r"""<!DOCTYPE html>
   .grammar-points .gp::before { content: '▸ '; color: #8b949e; }
   .grammar-chinese { margin-top: 12px; color: var(--dim); font-size: 0.92rem; line-height: 1.8; }
 
+  /* --- Mode toggle --- */
+  .mode-toggle { background: #1a1228; color: #d2a8ff; border: 1px solid #d2a8ff44; padding: 8px 16px; border-radius: 20px; cursor: pointer; font-size: 0.9rem; transition: all 0.2s; white-space: nowrap; }
+  .mode-toggle:hover { background: #d2a8ff22; }
+  .mode-toggle.active { background: #d2a8ff; color: #0d1117; font-weight: 700; }
+
+
 </style>
 </head>
 <body>
 <div class="container">
-  <h1>📖 WordWeave</h1>
-  <p class="subtitle">单词故事生成器 · 上传你的词库，AI 编故事</p>
+  <div style="display:flex;justify-content:space-between;align-items:center;">
+    <h1 style="margin:0;">📖 WordWeave</h1>
+    <button class="mode-toggle" id="modeToggle" onclick="toggleMode()">🧠 语法模式</button>
+  </div>
+  <p class="subtitle" id="modeSubtitle">单词故事生成器 · 上传你的词库，AI 编故事</p>
 
-  <!-- Toast -->
+  <!-- Toast & Popup -->
   <div class="toast" id="toast"></div>
-
-  <!-- Vocab popup -->
   <div class="vocab-popup" id="vocabPopup"><div class="zh-big"></div><div class="en-sm"></div></div>
 
-  <!-- Upload area -->
-  <div class="upload-area" id="uploadArea" onclick="document.getElementById('fileInput').click()">
-    <p>📂 拖放或点击上传单词表 <span class="name-hint">（.txt，一行一个单词）</span></p>
-    <input type="file" id="fileInput" accept=".txt" onchange="onFileSelected(event)">
-    <div class="upload-row hidden" id="uploadRow">
-      <input type="text" id="listName" placeholder="输入词库名称">
-      <button onclick="doUpload()">⬆️ 上传</button>
+  <!-- ====== MODE 1: VOCAB STORY ====== -->
+  <div id="modeVocab">
+    <!-- Upload area -->
+    <div class="upload-area" id="uploadArea" onclick="document.getElementById('fileInput').click()">
+      <p>📂 拖放或点击上传单词表 <span class="name-hint">（.txt，一行一个单词）</span></p>
+      <input type="file" id="fileInput" accept=".txt" onchange="onFileSelected(event)">
+      <div class="upload-row hidden" id="uploadRow">
+        <input type="text" id="listName" placeholder="输入词库名称">
+        <button onclick="doUpload()">⬆️ 上传</button>
+      </div>
+    </div>
+
+    <!-- Toolbar -->
+    <div class="toolbar">
+      <select id="listSelect" onchange="switchList()"></select>
+      <button class="btn-sm danger hidden" id="deleteBtn" onclick="deleteList()">🗑 删除</button>
+      <span class="info" id="wordCount"></span>
+    </div>
+
+    <p class="refresh-hint">按 <kbd>F5</kbd> 或点击按钮刷新，生成新故事</p>
+
+    <div id="storyArea"></div>
+
+    <div class="center">
+      <a class="btn" href="javascript:location.reload()">🔄 换一个故事</a>
+    </div>
+
+    <div class="error-box hidden" id="errorBox"></div>
+  </div>
+
+  <!-- ====== MODE 2: GRAMMAR STORY ====== -->
+  <div id="modeGrammar" class="hidden">
+    <div class="grammar-card" id="grammarCard">
+      <div class="grammar-story" id="grammarStory"></div>
+      <div class="grammar-points hidden" id="grammarPoints"></div>
+      <div class="grammar-chinese hidden" id="grammarChinese"></div>
+      <div class="loading-text" id="grammarLoading">⏳ <span class="spinner"></span> AI 正在编...</div>
+      <div class="center" style="margin-top:14px;">
+        <button class="btn" onclick="loadGrammarStory()">🔄 换一篇八卦</button>
+      </div>
     </div>
   </div>
 
-  <!-- Toolbar -->
-  <div class="toolbar">
-    <select id="listSelect" onchange="switchList()"></select>
-    <button class="btn-sm danger hidden" id="deleteBtn" onclick="deleteList()">🗑 删除</button>
-    <span class="info" id="wordCount"></span>
-  </div>
-
-  <!-- Grammar Practice Section -->
-  <div class="section-title grammar-title">🧠 语法实战 · 地狱难度</div>
-  <div class="grammar-card" id="grammarCard">
-    <div class="grammar-story" id="grammarStory"></div>
-    <div class="grammar-points hidden" id="grammarPoints"></div>
-    <div class="grammar-chinese hidden" id="grammarChinese"></div>
-    <div class="loading-text" id="grammarLoading">⏳ <span class="spinner"></span> AI 正在编...</div>
-    <button class="btn-sm" style="margin-top:10px;" onclick="loadGrammarStory()">🔄 换一篇</button>
-  </div>
-
-  <!-- Word Story Section -->
-  <p class="refresh-hint">按 <kbd>F5</kbd> 或点击按钮刷新，生成新故事</p>
-
-  <!-- Loading -->
-  <div class="center loading-text hidden" id="loading">⏳ <span class="spinner"></span> AI 正在编故事...</div>
-
-  <!-- Story area — replaced by server -->
-  <div id="storyArea"></div>
-
-  <div class="center">
-    <a class="btn" href="javascript:location.reload()">🔄 换一个故事</a>
-  </div>
-
-  <div class="error-box hidden" id="errorBox"></div>
 </div>
 
 <script>
@@ -476,6 +485,36 @@ ua.addEventListener('drop', e => {
 
 fetchLists();
 
+// --- Mode toggle ---
+let grammarLoaded = false;
+
+function toggleMode() {
+  const btn = document.getElementById('modeToggle');
+  const vocab = document.getElementById('modeVocab');
+  const grammar = document.getElementById('modeGrammar');
+  const subtitle = document.getElementById('modeSubtitle');
+
+  if (grammar.classList.contains('hidden')) {
+    // Switch to grammar mode
+    vocab.classList.add('hidden');
+    grammar.classList.remove('hidden');
+    btn.textContent = '📖 单词模式';
+    btn.classList.add('active');
+    subtitle.textContent = '复杂语法 + 简单词汇 · 地狱笑话 / 八卦故事';
+    if (!grammarLoaded) {
+      loadGrammarStory();
+      grammarLoaded = true;
+    }
+  } else {
+    // Switch to vocab mode
+    grammar.classList.add('hidden');
+    vocab.classList.remove('hidden');
+    btn.textContent = '🧠 语法模式';
+    btn.classList.remove('active');
+    subtitle.textContent = '单词故事生成器 · 上传你的词库，AI 编故事';
+  }
+}
+
 // --- Grammar story ---
 async function loadGrammarStory() {
   const card = document.getElementById('grammarCard');
@@ -512,7 +551,6 @@ async function loadGrammarStory() {
   }
   loadingEl.classList.add('hidden');
 }
-loadGrammarStory();
 
 // --- Vocab popup ---
 let popupTimer = null;
