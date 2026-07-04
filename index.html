@@ -1927,16 +1927,17 @@ let currentList = localStorage.getItem('dw_list') || 'TD_SAT_Golden_Words';
 let grammarLoaded = false;
 
 const MODEL_PRESETS = {
-  deepseek: { base: 'https://api.deepseek.com/v1', models: ['deepseek-v4-flash', 'deepseek-v4-pro'] },
-  openai: { base: 'https://api.openai.com/v1', models: ['gpt-5-mini', 'gpt-4o-mini', 'gpt-4o', 'o4-mini'] },
-  claude: { base: 'https://api.anthropic.com/v1', models: ['claude-3.5-haiku', 'claude-3.5-sonnet', 'claude-4-sonnet'] },
-  grok: { base: 'https://api.x.ai/v1', models: ['grok-3-mini', 'grok-3'] },
-  gemini: { base: 'https://generativelanguage.googleapis.com/v1beta/openai', models: ['gemini-2.5-flash', 'gemini-2.5-pro'] },
-  glm: { base: 'https://open.bigmodel.cn/api/paas/v4', models: ['glm-4-flash', 'glm-4-plus', 'glm-4.5'] },
-  minimax: { base: 'https://api.minimax.chat/v1', models: ['MiniMax-M2', 'abab7-chat'] },
-  moonshot: { base: 'https://api.moonshot.cn/v1', models: ['moonshot-v1-8k', 'moonshot-v1-32k', 'moonshot-v1-128k'] },
-  qwen: { base: 'https://dashscope.aliyuncs.com/compatible-mode/v1', models: ['qwen3-235b-a22b', 'qwen-plus', 'qwen-turbo'] },
-  siliconflow: { base: 'https://api.siliconflow.cn/v1', models: ['deepseek-ai/DeepSeek-V4', 'Qwen/Qwen3-235B-A22B', 'Pro/ZhipuAI/GLM-4.5'] },
+  deepseek: { base: 'https://api.deepseek.com/v1', models: ['deepseek-v4-pro', 'deepseek-v4-flash'] },
+  openai: { base: 'https://api.openai.com/v1', models: ['gpt-5.5', 'gpt-5.4-mini', 'gpt-5.4', 'o4-mini'] },
+  claude: { base: 'https://api.anthropic.com/v1', models: ['claude-sonnet-5', 'claude-haiku-4-5', 'claude-sonnet-4-5'] },
+  grok: { base: 'https://api.x.ai/v1', models: ['grok-4.1-fast', 'grok-4.3', 'grok-4.20'] },
+  gemini: { base: 'https://generativelanguage.googleapis.com/v1beta/openai', models: ['gemini-3.5-flash', 'gemini-2.5-pro', 'gemini-2.5-flash'] },
+  glm: { base: 'https://open.bigmodel.cn/api/paas/v4', models: ['glm-4.7-flash', 'glm-4.7', 'glm-4.6v'] },
+  minimax: { base: 'https://api.minimax.chat/v1', models: ['MiniMax-M3', 'MiniMax-M2.5', 'MiniMax-M2.1'] },
+  moonshot: { base: 'https://api.moonshot.cn/v1', models: ['kimi-k2.6', 'kimi-k2.5', 'moonshot-v1-128k'] },
+  qwen: { base: 'https://dashscope.aliyuncs.com/compatible-mode/v1', models: ['qwen3-max', 'qwen-plus', 'qwq-plus'] },
+  doubao: { base: 'https://ark.cn-beijing.volces.com/api/v3', models: ['doubao-seed-2-0-pro', 'doubao-seed-2-0-lite'] },
+  siliconflow: { base: 'https://api.siliconflow.cn/v1', models: ['deepseek-ai/DeepSeek-V4-Pro', 'Qwen/Qwen3-Max', 'zai-ai/GLM-4.7'] },
   custom: { base: '', models: [] }
 };
 
@@ -1944,7 +1945,7 @@ const PROVIDER_NAMES = {
   deepseek: 'DeepSeek', openai: 'OpenAI', claude: 'Anthropic Claude',
   grok: 'xAI Grok', gemini: 'Google Gemini', glm: '智谱 GLM',
   minimax: 'MiniMax', moonshot: 'Moonshot (Kimi)', qwen: '阿里通义千问',
-  siliconflow: '硅基流动 (多模型)', custom: '自定义'
+  doubao: '字节豆包', siliconflow: '硅基流动 (多模型)', custom: '自定义'
 };
 
 function getBaseUrl() {
