@@ -89,20 +89,20 @@ The story MUST naturally incorporate ALL of the provided vocabulary words.
 Make the story coherent and interesting.
 
 After the story, provide:
-1. Chinese translation for each vocabulary word used
-2. A full Chinese translation of the entire story (natural, flowing Chinese)
+1. A full Chinese translation of the entire story (natural, flowing Chinese)
+2. Chinese translation for EVERY word in the story (not just target words)
 
 Reply in this exact JSON format:
 {
   "story": "The full story text here...",
-  "translations": {"WORD1": "释义1", "WORD2": "释义2", ...},
+  "all_words": {"every": "每个", "word": "单词", "in": "在", "the": "这", "story": "故事", ...},
   "chinese": "全文中文翻译"
 }
 
 IMPORTANT: 
 - The story text must NOT contain any markdown, HTML tags, or special formatting. Just plain English text.
-- Each word in "translations" must match exactly the words provided.
-- Word translations should be concise (2-6 characters).
+- "all_words" must contain EVERY unique word that appears in the story (lowercase). This includes common words like "the", "a", "is", etc.
+- Each translation should be concise (1-4 Chinese characters).
 - "chinese" should be a natural, paragraph-length Chinese translation of the entire story.
 - Keep the story SHORT and CONCISE. 100-180 words is ideal."""
 
@@ -141,17 +141,17 @@ IMPORTANT:
             content = content[1:-1]
         result = json.loads(content)
         story = result.get('story', result.get('story_text', ''))
-        translations = result.get('translations', result.get('words', {}))
+        all_words = result.get('all_words', result.get('translations', {}))
         chinese = result.get('chinese', result.get('chinese_translation', ''))
-        return story, translations, chinese
+        return story, all_words, chinese
 
 
-def format_story(story_text, words, translations):
+def format_story(story_text, target_words, all_words_dict):
     story_html = story_text
     translation_html = story_text
-    sorted_words = sorted(words, key=len, reverse=True)
+    sorted_words = sorted(target_words, key=len, reverse=True)
     for word in sorted_words:
-        zh = translations.get(word, translations.get(word.lower(), ''))
+        zh = all_words_dict.get(word, all_words_dict.get(word.lower(), ''))
         pattern = re.compile(r'\b(' + re.escape(word) + r')\b', re.IGNORECASE)
         # English section: bold + clickable
         story_html = pattern.sub(
@@ -168,7 +168,27 @@ def format_story(story_text, words, translations):
                 lambda m: f'<b class="vocab" data-zh="" onclick="showPopup(event, this)">{m.group(1)}</b>',
                 translation_html
             )
-    return story_html, translation_html
+    return story_html, translation_html, all_words_dict
+
+
+def wrap_all_words(html, all_words_dict):
+    """Wrap every plain-text word in clickable spans, using all_words_dict for translations."""
+    import re as _re
+    result = []
+    parts = _re.split(r'(<[^>]+>)', html)
+    for part in parts:
+        if part.startswith('<'):
+            result.append(part)
+        else:
+            def replace_word(m):
+                word = m.group(1)
+                zh = all_words_dict.get(word.lower(), '')
+                if zh:
+                    return f'<span class="word" data-zh="{zh}" onclick="showPopupWord(event, this)">{word}</span>'
+                return f'<span class="word" data-zh="" onclick="showPopupWord(event, this)">{word}</span>'
+            wrapped = _re.sub(r"(\b[a-zA-Z][\w'-]*\b)", replace_word, part)
+            result.append(wrapped)
+    return ''.join(result)
 
 
 PAGE_HTML = r"""<!DOCTYPE html>
@@ -234,6 +254,8 @@ PAGE_HTML = r"""<!DOCTYPE html>
   .vocab-popup .en-sm { font-size: 0.8rem; color: var(--dim); margin-top: 2px; }
   .vocab { cursor: pointer; border-bottom: 1px dashed var(--accent); }
   .vocab:hover { background: rgba(255,166,87,0.15); border-radius: 3px; }
+  .word { cursor: pointer; }
+  .word:hover { background: rgba(88,166,255,0.12); border-radius: 2px; }
 
 </style>
 </head>
@@ -389,6 +411,35 @@ function showPopup(e, el) {
 }
 
 document.addEventListener('click', () => popup.classList.remove('show'));
+
+// --- Any-word popup (中英对照区所有单词) ---
+function showPopupWord(e, el) {
+  e.stopPropagation();
+  const zh = el.getAttribute('data-zh') || '';
+  const en = el.textContent.trim();
+
+  if (zh) {
+    popup.querySelector('.zh-big').textContent = zh;
+    popup.querySelector('.en-sm').textContent = en;
+  } else {
+    popup.querySelector('.zh-big').textContent = en;
+    popup.querySelector('.en-sm').textContent = '—';
+  }
+
+  const rect = el.getBoundingClientRect();
+  let top = rect.top - popup.offsetHeight - 8;
+  let left = rect.left + rect.width/2 - popup.offsetWidth/2;
+  if (top < 8) top = rect.bottom + 8;
+  if (left < 8) left = 8;
+  if (left + popup.offsetWidth > window.innerWidth - 8) left = window.innerWidth - popup.offsetWidth - 8;
+
+  popup.style.top = top + 'px';
+  popup.style.left = left + 'px';
+  popup.classList.add('show');
+
+  clearTimeout(popupTimer);
+  popupTimer = setTimeout(() => popup.classList.remove('show'), 2000);
+}
 </script>
 </body>
 </html>"""
@@ -409,14 +460,16 @@ ERROR_SECTION = """
 """
 
 
-def build_story_html(story_text, translations, chinese, words):
-    story_html, translation_html = format_story(story_text, words, translations)
+def build_story_html(story_text, all_words_dict, chinese, target_words):
+    story_html, translation_html, all_words_dict = format_story(story_text, target_words, all_words_dict)
     story_html = story_html.replace('\n\n', '</p><p>').replace('\n', '<br>')
     story_html = f'<p>{story_html}</p>'
     translation_html = translation_html.replace('\n\n', '</p><p>').replace('\n', '<br>')
     translation_html = f'<p>{translation_html}</p>'
     chinese_html = f'<p>{chinese.replace(chr(10), "</p><p>")}</p>' if chinese else '<p style="color:var(--dim);">（未生成）</p>'
-    word_tags = '\n    '.join(f'<span>{w}</span>' for w in words)
+    # Wrap every word in translation section as clickable
+    translation_html = wrap_all_words(translation_html, all_words_dict)
+    word_tags = '\n    '.join(f'<span>{w}</span>' for w in target_words)
     return STORY_SECTION.format(
         word_tags=word_tags,
         story_html=story_html,
@@ -479,8 +532,8 @@ class WordWeaveHandler(http.server.BaseHTTPRequestHandler):
                 try:
                     sample = random.sample(words, min(WORDS_PER_STORY, len(words)))
                     print(f"\n📝 [{active_list['name']}] Generating story with: {', '.join(sample)}")
-                    story_text, translations, chinese = generate_story(sample)
-                    story_section = build_story_html(story_text, translations, chinese, sample)
+                    story_text, all_words_dict, chinese = generate_story(sample)
+                    story_section = build_story_html(story_text, all_words_dict, chinese, sample)
                     print(f"✅ Story generated ({len(story_text.split())} words)")
                 except Exception as e:
                     story_section = ERROR_SECTION.format(error=str(e))
