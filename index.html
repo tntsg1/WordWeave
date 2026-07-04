@@ -1,0 +1,2193 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WordWeave · 单词故事</title>
+<style>
+:root{--bg:#0d1117;--card:#161b22;--border:#30363d;--text:#c9d1d9;--head:#f0f6fc;--accent:#ffa657;--green:#7ee787;--blue:#58a6ff;--purple:#d2a8ff;--btn:#238636;--dim:#8b949e}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI','Noto Sans SC',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:1.5rem}
+.container{max-width:860px;width:100%}
+h1{font-size:1.7rem;color:var(--head)}
+.subtitle{color:var(--dim);font-size:.85rem;margin-bottom:1.5rem}
+.btn{display:inline-block;background:var(--btn);color:#fff;border:none;padding:9px 22px;border-radius:6px;cursor:pointer;font-size:.95rem;transition:background .2s}
+.btn:hover{background:#2ea043}
+.btn-sm{font-size:.85rem;padding:6px 14px;border-radius:6px;border:1px solid var(--border);cursor:pointer;background:var(--card);color:var(--text)}
+.btn-sm:hover{background:#21262d}
+.btn-sm.danger{color:#da3633;border-color:#da3633}
+.btn-sm.danger:hover{background:#da3633;color:#fff}
+.mode-toggle{background:#1a1228;color:var(--purple);border:1px solid #d2a8ff44;padding:8px 16px;border-radius:20px;cursor:pointer;font-size:.9rem;transition:all .2s;white-space:nowrap}
+.mode-toggle:hover{background:#d2a8ff22}
+.mode-toggle.active{background:var(--purple);color:#0d1117;font-weight:700}
+.hidden{display:none!important}
+.center{text-align:center;margin-top:1rem}
+.toast{position:fixed;top:16px;right:16px;background:var(--btn);color:#fff;padding:10px 18px;border-radius:8px;font-size:.9rem;z-index:999;opacity:0;transition:opacity .3s;pointer-events:none}
+.toast.show{opacity:1}
+
+/* Setup */
+.setup-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:30px;text-align:center;max-width:500px;margin:3rem auto}
+.setup-card input{width:100%;padding:10px;margin:10px 0;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;font-size:.95rem}
+.setup-card .hint{color:var(--dim);font-size:.8rem;margin-top:8px}
+
+/* Toolbar */
+.toolbar{display:flex;gap:10px;align-items:center;margin-bottom:1rem;flex-wrap:wrap}
+.toolbar select{background:var(--card);color:var(--text);border:1px solid var(--border);padding:6px 12px;border-radius:6px;font-size:.9rem;min-width:180px}
+.toolbar .info{font-size:.8rem;color:var(--dim);margin-left:auto}
+
+/* Upload */
+.upload-area{background:var(--card);border:2px dashed var(--border);border-radius:10px;padding:20px;text-align:center;margin-bottom:1rem;cursor:pointer;transition:border-color .2s}
+.upload-area:hover{border-color:var(--blue)}
+.upload-area input[type=file]{display:none}
+.upload-area p{color:var(--dim);font-size:.9rem}
+.upload-row{display:flex;gap:10px;align-items:center;margin-top:10px;justify-content:center}
+.upload-row input{background:var(--bg);color:var(--text);border:1px solid var(--border);padding:6px 10px;border-radius:6px;font-size:.9rem;width:200px}
+
+/* Story */
+.words-bar{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:10px 14px;margin-bottom:1rem;display:flex;flex-wrap:wrap;gap:6px;justify-content:center}
+.words-bar span{background:#1f6feb22;color:var(--blue);border:1px solid #1f6feb44;padding:2px 9px;border-radius:11px;font-size:.82rem}
+.section-title{font-size:1.05rem;color:var(--head);margin:1rem 0 .6rem;padding-bottom:5px;border-bottom:1px solid var(--border)}
+.story,.translation{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:22px;margin-bottom:1.2rem;line-height:1.9;font-size:1rem;text-align:justify;font-family:'Georgia','Noto Serif SC',serif}
+.story b,.translation b{color:var(--accent);font-weight:700;cursor:pointer;border-bottom:1px dashed var(--accent)}
+.story b:hover,.translation b:hover{background:rgba(255,166,87,.15);border-radius:3px}
+.word{cursor:pointer}
+.word:hover{background:rgba(88,166,255,.12);border-radius:2px}
+.translation .zh{color:var(--green);font-size:.88rem}
+.refresh-hint{text-align:center;color:#484f58;font-size:.8rem;margin:.5rem 0}
+.refresh-hint kbd{background:#21262d;border:1px solid var(--border);border-radius:4px;padding:1px 5px;font-family:monospace}
+
+/* Popup */
+.popup{position:fixed;background:#1a1f2e;border:1px solid var(--accent);border-radius:8px;padding:8px 14px;color:#fff;font-size:.9rem;z-index:9999;pointer-events:none;opacity:0;transform:translateY(4px);transition:opacity .15s,transform .15s;box-shadow:0 4px 16px rgba(0,0,0,.5);max-width:220px;text-align:center}
+.popup.show{opacity:1;transform:translateY(0)}
+.popup .zh-big{font-size:1.3rem;font-weight:700;color:var(--green)}
+.popup .en-sm{font-size:.8rem;color:var(--dim);margin-top:2px}
+
+/* Grammar */
+.grammar-card{background:var(--card);border:1px solid #d2a8ff33;border-radius:10px;padding:20px;margin-bottom:1.5rem}
+.grammar-story{line-height:1.9;font-size:1rem;text-align:justify;font-family:'Georgia','Noto Serif SC',serif;margin-bottom:.8rem}
+.grammar-points{background:#1a1228;border:1px solid #d2a8ff22;border-radius:8px;padding:12px 16px;margin-top:12px}
+.grammar-points .gp{color:var(--purple);font-size:.85rem;padding:3px 0}
+.grammar-points .gp::before{content:'▸ ';color:var(--dim)}
+.grammar-chinese{margin-top:12px;color:var(--dim);font-size:.92rem;line-height:1.8}
+.loading-text{color:var(--dim);font-style:italic;text-align:center;padding:20px}
+.spinner{display:inline-block;width:18px;height:18px;border:2px solid var(--dim);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;vertical-align:middle;margin-right:6px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.error-box{background:#49020233;border:1px solid #f8514966;border-radius:8px;padding:16px;color:#f85149;margin-bottom:1rem}
+</style>
+</head>
+<body>
+<div class="container">
+  <div style="display:flex;justify-content:space-between;align-items:center;">
+    <h1 style="margin:0;">📖 WordWeave</h1>
+    <button class="mode-toggle" id="modeToggle" onclick="toggleMode()">🧠 语法模式</button>
+  </div>
+  <p class="subtitle" id="modeSubtitle">单词故事生成器 · 上传你的词库，AI 编故事</p>
+
+  <!-- Setup: API Key -->
+  <div class="setup-card hidden" id="setupCard">
+    <h2>🔑 首次使用</h2>
+    <p style="color:var(--dim);margin:12px 0;">输入你的 DeepSeek API Key（仅存在你的浏览器里）</p>
+    <input type="password" id="apiKeyInput" placeholder="sk-...">
+    <button class="btn" onclick="saveKey()">保存</button>
+    <p class="hint">在 <a href="https://platform.deepseek.com/api_keys" target="_blank" style="color:var(--blue);">platform.deepseek.com</a> 获取</p>
+  </div>
+
+  <!-- Toast & Popup -->
+  <div class="toast" id="toast"></div>
+  <div class="popup" id="popup"><div class="zh-big"></div><div class="en-sm"></div></div>
+
+  <!-- MODE 1: VOCAB -->
+  <div id="modeVocab">
+    <div class="upload-area" id="uploadArea" onclick="document.getElementById('fileInput').click()">
+      <p>📂 拖放或点击上传单词表 <span style="color:var(--blue)">（.txt，一行一个单词）</span></p>
+      <input type="file" id="fileInput" accept=".txt" onchange="onFileSelected(event)">
+      <div class="upload-row hidden" id="uploadRow">
+        <input type="text" id="listName" placeholder="输入词库名称">
+        <button class="btn-sm" onclick="doUpload()" style="background:var(--btn);color:#fff;border:none;">⬆️ 上传</button>
+      </div>
+    </div>
+    <div class="toolbar">
+      <select id="listSelect" onchange="switchList()"></select>
+      <button class="btn-sm danger hidden" id="deleteBtn" onclick="deleteList()">🗑 删除</button>
+      <span class="info" id="wordCount"></span>
+    </div>
+    <p class="refresh-hint">按 <kbd>F5</kbd> 刷新，生成新故事</p>
+    <div id="storyArea"></div>
+  </div>
+
+  <!-- MODE 2: GRAMMAR -->
+  <div id="modeGrammar" class="hidden">
+    <div class="grammar-card">
+      <div class="grammar-story" id="grammarStory"></div>
+      <div class="grammar-points hidden" id="grammarPoints"></div>
+      <div class="grammar-chinese hidden" id="grammarChinese"></div>
+      <div class="loading-text" id="grammarLoading">⏳ <span class="spinner"></span> AI 正在编...</div>
+      <div class="center"><button class="btn" onclick="loadGrammarStory()">🔄 换一篇八卦</button></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ====== EMBEDDED SAT WORD LIST ======
+const DEFAULT_WORDS = `plumpness
+scrawny
+primate
+arctic
+allocate
+consolidate
+offset
+insulate
+optimal
+incubator
+belly
+cavity
+subcutaneous
+buffer
+saturate
+fuel
+fetus
+pregnancy
+premature
+preemie
+presumably
+preceding
+suspect
+oscillate
+reintroduce
+ancestral
+juvenile
+reverse
+invasive
+behavioral
+align
+switch
+ripple
+awfully
+unfurl
+flare
+blossom
+mild
+squashy
+nectar
+defecate
+heap
+collapse
+mere
+floral
+compound
+lure
+fragrant
+emit
+laden
+interfere
+interval
+indifferent
+sustainable
+irrigation
+disdain
+enormous
+disparity
+trail
+bulk
+unintended
+deliver
+convention
+recapture
+hindsight
+thwart
+sound
+appraisal
+liability
+malpractice
+defendant
+forensic
+arbitrary
+focal
+mishap
+afflict
+thrive
+interpret
+disregard
+impressive
+automate
+sluggish
+ominous
+dismal
+manufacture
+retail
+stagnation
+wilt
+parallel
+decouple
+gross
+soar
+disruption
+liaison
+rival
+candidate
+frame
+solely
+reception
+reputation
+reluctant
+disengage
+dumb
+rhetorical
+bluster
+defensive
+recipient
+uneasy
+slant
+distinct
+quote
+supremacy
+vacuum
+manipulate
+tangible
+aggregate
+sway
+nudge
+script
+bold
+acute
+destiny
+arrant
+purposelessness
+frantic
+strip
+reign
+commence
+jam
+crave
+intensely
+layout
+considerable
+pulp
+genre
+exhume
+flush
+gratitude
+undiminished
+worship
+solitude
+stir
+compact
+onward
+weaver
+pause
+crawl
+stroll
+toddle
+pluck
+winged
+hushed
+triumph
+remembrance
+refuge
+enfeeble
+unfold
+stupefy
+consciousness
+articulate
+imperative
+watchfulness
+penetration
+incompatible
+proliferate
+revenue
+condemn
+demur
+enterprise
+kudos
+smudge
+ubiquitous
+gauge
+stretch
+bow
+florid
+crux
+limp
+affair
+vestigial
+trench
+reveal
+tectonic
+descend
+mantle
+subduction
+unmask
+dawn
+squeeze
+submersible
+successive
+erupt
+atop
+signature
+robust
+warp
+reliable
+contamination
+legitimate
+timeworn
+bother
+massive
+heft
+motion
+freight
+quark
+quantum
+symmetric
+spoil
+shove
+pristine
+invisible
+resistance
+justifiable
+submerge
+permeate
+revise
+proposal
+stroke
+retain
+relegate
+attest
+entrenched
+vernacular
+confirm
+innovation
+optimistic
+install
+mundane
+lithography
+flexible
+boost
+feasible
+spatial
+navigation
+significant
+alter
+pronounced
+mutable
+sensory
+anatomical
+static
+champ
+indistinguishable
+conjure
+nurture
+aspiration
+dispossess
+saint
+immoral
+abject
+exclusion
+slay
+ennoble
+ridicule
+spray
+resist
+stamina
+ally
+discipline
+fast
+belittle
+cringe
+inherit
+dreary
+outrage
+uphill
+injunction
+institutionalize
+corrupt
+brutal
+frustrating
+obstacle
+unionize
+paternalism
+machinery
+procedure
+negotiation
+dignity
+modify
+originate
+ultimately
+coarse
+confound
+grant
+medley
+manifest
+dissimilar
+fulfill
+scarcely
+amicable
+substitute
+dominion
+intimate
+tenacity
+cling
+declare
+patriot
+sacred
+reverence
+lisp
+disrobe
+unveil
+quintessential
+emission
+estimation
+sparse
+surefire
+unravel
+invigorate
+embryonic
+analogous
+surge
+initiate
+intermediate
+pivotal
+retrospection
+spontaneous
+temporal
+postural
+sting
+implicate
+paradoxical
+terrestrial
+acclimation
+resonance
+alert
+aerial
+transmit
+fable
+provocative
+apprehension
+stimulus
+gist
+galaxy
+swirl
+particle
+obscure
+penetrate
+supermassive
+vicinity
+vertebrate
+preferential
+spectrum
+devoid
+inert
+afresh
+encode
+frontier
+cellular
+alleviate
+inflammation
+severe
+fare
+regulatory
+revelation
+primeval
+materialize
+swiftly
+relieve
+irksome
+eligible
+serene
+yawn
+consolation
+glow
+absolutely
+request
+prevailing
+imperious
+plaintive
+demure
+applause
+disgusted
+stratagem
+muddy
+veracity
+exaggerate
+irresistible
+transparent
+ecstasy
+bluff
+await
+amusement
+exemplary
+glossy
+fervent
+grasp
+constraint
+mansion
+exceedingly
+erect
+cosy
+grandeur
+seductive
+excursion
+dull
+duration
+inauspicious
+conceal
+punctilious
+eminent
+unaccountable
+deportment
+perusal
+neglect
+ponderous
+audible
+oppressive
+intrude
+garment
+rival
+undisputed
+tenant
+uneventful
+tremble
+protract
+pounce
+listless
+spectacle
+confess
+oblige
+possession
+protest
+doctrine
+infallible
+blessing
+assemble
+prejudice
+astonish
+endeavor
+federal
+consolidated
+liberty
+usurpation
+sovereignty
+coercive
+degenerate
+splendor
+languish
+paramount
+retire
+ridge
+naked
+diplomatic
+indispensable
+league
+enquiry
+unfeigned
+utter
+wretched
+permit
+device
+lessen
+furnish
+precedent
+profound
+faithful
+handle
+debtor
+luxury
+vessel
+voyage
+configuration
+afloat
+naval
+maritime
+intermeddle
+fundamental
+forfeit
+isolated
+everlasting
+acknowledge
+domestic
+contrariety
+mischievous
+mutual
+pursuit
+trace
+spur
+yardstick
+welfare
+skepticism
+indicator
+associate
+consumption
+entity
+conceptual
+causal
+investigate
+virtual
+engagement
+inappropriate
+excessive
+dimension
+recruit
+leap
+perception
+underestimate
+acquire
+intersect
+consonant
+vowel
+iterate
+linguistic
+merge
+elaborate
+transient
+proximate
+disrupt
+reaffirm
+minor
+optimist
+pessimist
+decisive
+agenda
+triumphant
+numerous
+apparent
+aesthetics
+derive
+ashamed
+modulate
+compartment
+deliberate
+perceptual
+spark
+emerge
+inference
+impersonate
+deceive
+sympathetic
+calamitous
+empower
+chronic
+embroil
+jealous
+perpetual
+troublesome
+cherish
+sanguine
+contrivance
+presume
+restrain
+discern
+imputation
+formidable
+delicate
+despise
+imbecile
+ambition
+turbulent
+oppress
+adduce
+replete
+trample
+pervade
+terminate
+prosperous
+enlighten
+confidential
+substance
+unpardonable
+uprising
+defense
+branch
+lumber
+majesty
+lamentable
+eventful
+divine
+incontrovertible
+accommodation
+occasion
+disenthrall
+lust
+compel
+spare
+disinterest
+inconsonant
+evade
+abdicate
+regeneration
+allegation
+warrant
+reckless
+socialistic
+ethical
+thence
+deduce
+discernible
+contingent
+buoyancy
+gyre
+debris
+converge
+coastal
+ingest
+foul
+iterative
+fade
+promising
+institution
+awry
+astray
+collaborative
+derision
+huddle
+furtive
+estate
+consent
+divest
+bargain
+omit
+slip
+subordinate
+annulment
+temper
+commit
+ranks
+tyranny
+adversary
+negotiate
+terror
+eradicate
+courier
+inquire
+placid
+audacity
+earnestly
+fastidious
+lucid
+conceit
+unanimous
+ascend
+mute
+lofty
+solitary
+asunder
+imprisonment
+fellow
+captive
+agreeable
+drag
+lull
+homely
+trifle
+strain
+dainty
+mincing
+avenue
+tremor
+abiding
+lash
+airborne
+clandestine
+biomass
+fraud
+extrapolate
+apoptosis
+pathologist
+wander
+forthcoming
+simulate
+fluctuate
+ambush
+suspicion
+crafty
+escapade
+episodic
+swat
+antagonize
+amphibian
+contribute
+aquatic
+moist
+cutaneous
+respiration
+tropical
+proportion
+magnetic
+slice
+ascertain
+pinnacle
+corroborate
+nonverbal
+collide
+inward
+invertebrate
+cerebral
+whilst
+predation
+parasitize
+verge
+genome
+infect
+inflict
+fend
+mentor
+wobbly
+outward
+volume
+tract
+chop
+dizzying
+resistant
+harbor
+avian
+gaseous
+fertilizer
+solidify
+wharf
+skirmish
+lug
+slender
+confusion
+upturned
+glance
+mist
+amiss
+blooming
+rapturous
+damsel
+sumptuous
+itinerant
+tranquil
+concentrate
+ignorant
+covet
+calmly
+marvel
+sublime
+firmament
+crutch
+courtesy
+glory
+chief
+yonder
+foregoing
+greet
+broach
+choleric
+surreptitious
+frown
+recite
+incantation
+sneer
+bureaucracy
+mutter
+befit
+ruffle
+coax
+pupil
+vagary
+vanish
+behest
+rapt
+brimful
+overflow
+vehement
+burdensome
+physiognomy
+hysterical
+portly
+flatter
+obese
+pierce
+frayed
+stain
+shipwreck
+dip
+drift
+arrest
+contrive
+intercept
+ordinarily
+macroeconomic
+microeconomic
+preoccupation
+complement
+notable
+personality
+cyberspace
+session
+introverted
+shuffle
+topple
+germ
+compassion
+deem
+underpin
+overarching
+grid
+correlate
+diverse
+conglomeration
+ideological
+exemplify
+comprehensible
+keen
+disseminate
+equate
+campaign
+electoral
+outline
+inherent
+literally
+schema
+trigger
+ethology
+beholder
+slide
+tender
+perceive
+recurrence
+plot
+oral
+phylogenetic
+ambiguity
+check
+famine
+epidemic
+despair
+intervention
+additive
+sketch
+parameter
+bypass
+inhibit
+hint
+alphabet
+obligation
+sect
+corrupt
+joint
+council
+whisper
+syllable
+partisan
+salutary
+procure
+posterity
+convulsion
+territory
+invade
+hitherto
+dazzle
+misery
+legislation
+misfortune
+supreme
+breadth
+manufacturer
+proprietor
+conscious
+subdivision
+exempt
+violate
+canal
+superintendent
+decent
+pledge
+fleet
+shore
+diametrically
+strife
+dabble
+surrender
+insure
+wipe
+succor
+aggregate
+surplus
+authorize
+subsist
+solicitude
+mass
+principally
+probable
+acquainted
+continental
+inflamed
+extinguish
+beget
+foresight
+succession
+disposition
+invidious
+rash
+conjecture
+discord
+downright
+distress
+encomium
+reckon
+honorable
+gradual
+encroachment
+judicial
+plight
+underappreciated
+shun
+gibe
+haunt
+prodigal
+affection
+coruscate
+recoil
+calamity
+betwixt
+between
+ignominy
+retribution
+wreck
+delusion
+vacancy
+traverse
+embroider
+acknowledgement
+outgrow
+fraction
+leftmost
+disproportionate
+contributor
+harness
+fossilization
+optical
+convert
+squish
+glittering
+indigo
+paleobiologist
+subterranean
+entomologist
+tantalizing
+amplify
+propagation
+parliamentary
+appeal
+revolt
+genuine
+allegiance
+unconstrained
+partial
+allay
+suppress
+mischief
+conquest
+integrity
+estate
+accrue
+appoint
+scrawl
+perennial
+vertical
+yield
+replenish
+resilient
+tillage
+erode
+hybrid
+steep
+aviator
+celebrity
+preeminent
+propeller
+guarantee
+crash
+capability
+fatigue
+glide
+perseverance
+internship
+precursor
+ostensibly
+indiscriminate
+pitfall
+petition
+ensemble
+longevity
+percussion
+pedal
+adaptability
+mechanism
+launch
+nocturnal
+harbinger
+vernal
+pinpoint
+porous
+vulnerable
+witty
+apt
+parade
+shrub
+vigor
+guileless
+chaos
+elaborate
+shrivel
+frustrate
+shrine
+miniature
+mutant
+acorn
+cryptography
+affliction
+retrospect
+tentative
+wince
+resemble
+immune
+enhance
+summon
+enchant
+conception
+enforcement
+verbiage
+stinking
+filthy
+irrational
+steer
+chronological
+fake
+negate
+grin
+crevice
+peculiar
+prospect
+assembly
+pitch
+prop
+marginal
+notation
+convoke
+preside
+disguise
+pendent
+sober
+treaty
+decay
+tug
+degrade
+swear
+prattle
+tongue
+unceasingly
+repeal
+sake
+provision
+promulgation
+abolitionism
+excusable
+content
+amend
+transgress
+minority
+perchance
+adopt
+withdraw
+property
+conform
+collision
+coerce
+sentiment
+esteemed
+gratify
+refine
+cultivate
+unambitious
+banish
+entreat
+combatant
+array
+innumerable
+wrest
+utterly
+monarch
+summit
+era
+enzyme
+terrific
+acceleration
+condense
+dilute
+telltale
+spiral
+groundless
+inheritable
+transformative
+immense
+counsel
+mutation
+digestive
+intestine
+derivation
+messy
+degrade
+rupture
+appetizing
+expenditure
+hapless
+tempt
+credential
+subconscious
+horizontal
+murky
+split
+strand
+idiosyncratic
+scanty
+decomposer
+synthesize
+inorganic
+atmospheric
+combustion
+manure
+momentum
+escalate
+redistribute
+therapy
+meditation
+designate
+confer
+sloppily
+rotund
+angular
+trivial
+dejected
+impetuous
+furious
+disdain
+ridicule
+agitated
+trance
+wrinkle
+pompous
+insult
+desultory
+perplex
+irresolute
+surmise
+impulse
+radiant
+indefatigable
+beneath
+fringe
+betoken
+habitual
+distend
+acute
+differentiate
+abrupt
+convincing
+discrimination
+permanent
+acquiesce
+accord
+augmentation
+fortify
+moderate
+coordination
+inventive
+quantify
+orienteering
+riddle
+contextual
+homogeneous
+retrievable
+prerogative
+competence
+descriptive
+pedagogic
+inevitable
+declamation
+specimen
+eloquent
+rehearse
+illustrious
+wrought
+distinguish
+despotic
+fatal
+diffuse
+descent
+alienation
+hostage
+glibly
+choke
+stiff
+perch
+gaze
+solemn
+diabolical
+matrimony
+bachelor
+feud
+agog
+jolly
+efficacy
+impair
+persistent
+progeny
+quiescent
+clinical
+maid
+slight
+lean
+scant
+querulous
+betray
+taut
+tarnish
+impugn
+stare
+droop
+senile
+condescend
+mythical
+jut
+timid
+undignified
+scurry
+confront
+candid
+commotion
+remedy
+flagrant
+outrageous
+dupe
+intercourse
+assure
+subjoin
+sow
+righteous
+stump
+striking
+manageable
+hindrance
+alarm
+apathy
+stalemate
+invoke
+enact
+intone
+anew
+vain
+inexcusable
+diagnosis
+manual
+turmoil
+antagonistic
+whim
+slack
+conversion
+superficial
+forbid
+owe
+awe
+compendium
+servile
+attachment
+distribution
+imitation
+comply
+domesticate
+rudiment
+transition
+objection
+conservative
+roam
+metabolism
+curve
+superlative
+colossal
+hollow
+alligator
+spurt
+tapered
+legitimacy
+critique
+ironic
+impose
+sufficient
+abstain
+blunder
+quixotic
+acquaint
+whimsical
+ordain
+piety
+implication
+arduous
+counterpart
+ingredient
+bolster
+acidic
+plausible
+luxuriant
+bombard
+conventional
+episode
+demographic
+compensation
+apprentice
+crucial
+scrupulous
+intricate
+relentless
+swath
+recreational
+municipality
+manifesto
+abolish
+anonymity
+ghastly
+distracting
+glamour
+menacing
+preoccupied
+depict
+legible
+pretension
+exert
+idealistic
+eccentric
+alienate
+imperishable
+diverge
+mechanization
+conscience
+sheer
+unadorned
+detrimental
+mantra
+susceptible
+tally
+testimony
+bias
+impact
+labyrinth
+posterior
+spawn
+circuitry
+validity
+consensus
+identical
+minute
+versatile
+boon
+fragility
+render
+protrude
+equivalent
+insatiable
+illiterate
+persecute
+larceny
+unwittingly
+eliminate
+scold
+malfeasance
+facilitate
+diversion
+scenery
+rein
+elite
+rugged
+monotony
+haul
+bait
+venture
+inconsistency
+hospitable
+cozy
+unpretentious
+agitation
+inquisitive
+athletic
+subsequent
+penalty
+sanitation
+utilize
+condemnation
+deflate
+reiterate
+friction
+grasp
+intriguing
+prescribe
+vexing
+atomic
+minuscule
+imbibe
+elusive
+affiliate
+repudiate
+precede
+dreadful
+delineate
+unflattering
+enlist
+unaccustomed
+indolent
+depravity
+aristocrat
+inflammatory
+harangue
+rumours
+aggravate
+contemplate
+desolate
+inculcate
+groan
+infectious
+ferocity
+detract
+mockery
+grievance
+inflate
+fanatical
+underscore
+quirk
+charisma
+scarce
+offspring
+protocol
+portray
+constitute
+markedly
+recipe
+crack
+distort
+query
+holistic
+hygiene
+discrepancy
+exhaustive
+exultation
+casualties
+mesic
+privileged
+unintelligible
+mediation
+double
+veranda
+refined
+deferential
+maternal
+endearingly
+candidacy
+unseemliness
+humble
+preposterous
+engender
+apprehensive
+relish
+unprecedented
+substantiate
+egocentrism
+intuitive
+unfounded
+construe
+notion
+complementary
+convey
+expenditures
+backbone
+monomer
+permutations
+purine
+vantage
+perspective
+pervasive
+procession
+caravanserai
+esthetic
+traipse
+agitate
+bazaar
+venerable
+baptisms
+prospecting
+hypothetical
+venture
+bounty
+sidestep
+merit
+despoil
+glut
+stewardship
+broach
+plea
+strain
+cultured
+outdo
+dispose
+deplete
+carbohydrates
+serving
+whey
+interior
+thaw
+tundra
+prone
+expedition
+ecosystem
+gleefully
+novelty
+baffle
+tedious
+nuisance
+tumult
+fetish
+antipathy
+liable
+evince
+poignant
+mortify
+malignity
+tact
+pittance
+inexorable
+critique
+dilemma
+virtue
+phony
+queasy
+parody
+clash
+cue
+welter
+adept
+prominent
+acquisition
+plastic
+pancreas
+revamp
+verdict
+undulate
+suffrage
+aggrandize
+sublunary
+masculine
+disfranchised
+enfranchisement
+dilution
+mold
+freewheeling
+lament
+oppression
+legislator
+scandalous
+oceanographic
+topography
+salinity
+plunger
+devise
+nevertheless
+patron
+diminish
+savvy
+ornate
+luxurious
+aristocratic
+sparsely
+hutch
+exquisite
+craftsmanship
+kelp
+voraciously
+devour
+sullen
+betake
+complexion
+admonition
+exponent
+indifference
+apparition
+meekness
+provoking
+temperament
+colloquial
+autocratic
+discomfiture
+outspoken
+ignominious
+imprudent
+squalid
+impaired
+decrepit
+whisk
+ramify
+mire
+insulation
+endow
+locomotion
+traction
+predecessors
+incontestable
+aspire
+strenuous
+onerous
+dispassionately
+parity
+prevail
+partake
+denomination
+susceptibility
+potent
+postulate
+intermittent
+pathogens
+balk
+inadequate
+bipolar
+ailment
+constitute
+abysmal
+surly
+icky
+sinister
+aroma
+adversely
+pathology
+homage
+decree
+attire
+feline
+benefactor
+simultaneously
+sustenance
+eternal
+volition
+egotism
+authenticate
+empirical
+increment
+condo
+bust
+inversion
+incur
+degradation
+envision
+crank
+autoimmune
+therapeutic
+bouncer
+secrete
+obstinacy
+consecrate
+pious
+paternal
+renovate
+subordinate
+subservient
+vanity
+conceive
+nonentity
+resignation
+sediment
+outcrop
+mural
+confide
+promulgate
+impart
+emulate
+designated
+context
+preserve
+maintain
+residue
+beverage
+epitome
+galvanizing
+predominant
+sophisticated
+conceptualize
+reformulate
+emphatic
+assess
+correspond
+analogy
+prescribed
+incomprehensible
+boundless
+haven
+decipher
+miser
+flung
+sanctuary
+frequent
+portrayal
+scatterbrained
+mattress
+null
+detectable
+squelch
+replicate
+address
+grantee
+deter
+tweak
+nanoworld
+loosey-goosey
+theoretical
+elasticity
+luscious
+aptitude
+chafe
+somber
+neatness
+anguish
+cushiony
+catalyst
+humdrum
+altruism
+sclerosis
+stave
+mesmerize
+stunt
+swindle
+peril
+impeccable
+disorient
+daredevil
+proponent
+decathlon
+rescind
+tepid
+synergy
+obscurity
+veterinary
+bionic
+remote
+dubbed
+photovoltaic
+submerse
+wafer
+metabolic
+synthesis
+surgical
+antibiotic
+iteration
+surpass
+wryly
+conquer
+pesticide
+apartheid
+gospel
+perpetuate
+antithesis
+tribalism
+indebted
+mirage
+yearn
+rectify
+indefensible
+imminent
+baffling
+stardust
+infrared
+preclude`.trim().split('\n').filter(w => w);
+
+// ====== STATE ======
+let apiKey = localStorage.getItem('dw_key') || '';
+let currentList = localStorage.getItem('dw_list') || 'TD_SAT_Golden_Words';
+let grammarLoaded = false;
+
+// ====== API ======
+async function callDeepSeek(messages, temp=0.9, maxTok=800) {
+  const r = await fetch('https://api.deepseek.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json','Authorization':'Bearer '+apiKey},
+    body: JSON.stringify({model:'deepseek-chat', messages, temperature:temp, max_tokens:maxTok})
+  });
+  if (!r.ok) throw new Error(`API ${r.status}: ${await r.text()}`);
+  return r.json();
+}
+
+function parseJSON(content) {
+  content = content.trim();
+  if (content.startsWith('```')) {
+    content = content.split('\n').slice(1).join('\n');
+    if (content.endsWith('```')) content = content.slice(0,-3);
+  }
+  if (content.startsWith("'") && content.endsWith("'")) content = content.slice(1,-1);
+  return JSON.parse(content);
+}
+
+// ====== WORD LISTS ======
+function getDefaultList() {
+  return {name:'TD_SAT_Golden_Words', words:DEFAULT_WORDS};
+}
+
+function getUserLists() {
+  try { return JSON.parse(localStorage.getItem('dw_user_lists')||'[]'); } catch(e) { return []; }
+}
+
+function saveUserLists(lists) { localStorage.setItem('dw_user_lists', JSON.stringify(lists)); }
+
+function getAllLists() {
+  const lists = [{name:'TD_SAT_Golden_Words', count:DEFAULT_WORDS.length}];
+  getUserLists().forEach(l => lists.push({name:l.name, count:l.words.length}));
+  return lists;
+}
+
+function getWords(name) {
+  if (name === 'TD_SAT_Golden_Words') return [...DEFAULT_WORDS];
+  const ul = getUserLists().find(l => l.name === name);
+  return ul ? [...ul.words] : [];
+}
+
+function sampleWords(arr, n=12) {
+  const a = [...arr];
+  for (let i=a.length-1;i>0;i--) { const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]; }
+  return a.slice(0, Math.min(n, a.length));
+}
+
+// ====== SETUP ======
+function checkSetup() {
+  if (!apiKey) {
+    document.getElementById('modeVocab').classList.add('hidden');
+    document.getElementById('modeGrammar').classList.add('hidden');
+    document.getElementById('modeToggle').classList.add('hidden');
+    document.getElementById('setupCard').classList.remove('hidden');
+    return false;
+  }
+  document.getElementById('setupCard').classList.add('hidden');
+  document.getElementById('modeToggle').classList.remove('hidden');
+  return true;
+}
+
+function saveKey() {
+  apiKey = document.getElementById('apiKeyInput').value.trim();
+  if (!apiKey) return toast('请输入 API Key');
+  localStorage.setItem('dw_key', apiKey);
+  checkSetup();
+  document.getElementById('modeVocab').classList.remove('hidden');
+  initVocab();
+}
+
+// ====== TOAST ======
+let toastTimer;
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// ====== POPUP ======
+let popupTimer;
+const popup = document.getElementById('popup');
+function showPopup(e, el) {
+  e.stopPropagation();
+  const zh = el.getAttribute('data-zh') || el.textContent;
+  popup.querySelector('.zh-big').textContent = zh;
+  popup.querySelector('.en-sm').textContent = el.textContent;
+  const r = el.getBoundingClientRect();
+  let top = r.top - popup.offsetHeight - 8, left = r.left + r.width/2 - popup.offsetWidth/2;
+  if (top < 8) top = r.bottom + 8;
+  if (left < 8) left = 8;
+  popup.style.top = top+'px'; popup.style.left = left+'px';
+  popup.classList.add('show');
+  clearTimeout(popupTimer);
+  popupTimer = setTimeout(() => popup.classList.remove('show'), 2000);
+}
+document.addEventListener('click', () => popup.classList.remove('show'));
+
+// ====== MODE TOGGLE ======
+function toggleMode() {
+  const btn = document.getElementById('modeToggle');
+  const vocab = document.getElementById('modeVocab');
+  const grammar = document.getElementById('modeGrammar');
+  const subtitle = document.getElementById('modeSubtitle');
+  if (grammar.classList.contains('hidden')) {
+    vocab.classList.add('hidden'); grammar.classList.remove('hidden');
+    btn.textContent = '📖 单词模式'; btn.classList.add('active');
+    subtitle.textContent = '复杂语法 + 简单词汇 · 地狱笑话 / 八卦故事';
+    if (!grammarLoaded) { loadGrammarStory(); grammarLoaded = true; }
+  } else {
+    grammar.classList.add('hidden'); vocab.classList.remove('hidden');
+    btn.textContent = '🧠 语法模式'; btn.classList.remove('active');
+    subtitle.textContent = '单词故事生成器 · 上传你的词库，AI 编故事';
+  }
+}
+
+// ====== VOCAB MODE ======
+function initVocab() {
+  renderListSelect();
+  generateVocabStory();
+}
+
+function renderListSelect() {
+  const sel = document.getElementById('listSelect');
+  const lists = getAllLists();
+  sel.innerHTML = lists.map(l =>
+    `<option value="${l.name}" ${l.name===currentList?'selected':''}>${l.name} (${l.count} 词)</option>`
+  ).join('');
+  const active = lists.find(l => l.name === currentList);
+  document.getElementById('wordCount').textContent = active ? `共 ${active.count} 词` : '';
+  document.getElementById('deleteBtn').classList.toggle('hidden', !active || active.name==='TD_SAT_Golden_Words');
+}
+
+function switchList() {
+  currentList = document.getElementById('listSelect').value;
+  localStorage.setItem('dw_list', currentList);
+  generateVocabStory();
+}
+
+function deleteList() {
+  if (!confirm('确定删除这个词库？')) return;
+  const lists = getUserLists().filter(l => l.name !== currentList);
+  saveUserLists(lists);
+  currentList = 'TD_SAT_Golden_Words';
+  localStorage.setItem('dw_list', currentList);
+  renderListSelect();
+  generateVocabStory();
+  toast('已删除');
+}
+
+function onFileSelected(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  document.getElementById('uploadRow').classList.remove('hidden');
+  document.getElementById('listName').value = file.name.replace(/\.txt$/i, '');
+}
+
+async function doUpload() {
+  const file = document.getElementById('fileInput').files[0];
+  const name = document.getElementById('listName').value.trim();
+  if (!file || !name) return toast('请选择文件并输入名称');
+  const text = await file.text();
+  const words = text.split('\n').map(l => l.trim()).filter(l => l);
+  if (words.length < 3) return toast('单词太少，至少需要 3 个');
+
+  const lists = getUserLists().filter(l => l.name !== name);
+  lists.push({name, words});
+  saveUserLists(lists);
+  currentList = name;
+  localStorage.setItem('dw_list', currentList);
+  renderListSelect();
+  generateVocabStory();
+  toast(`已上传: ${name} (${words.length} 词)`);
+  document.getElementById('uploadRow').classList.add('hidden');
+}
+
+async function generateVocabStory() {
+  if (!checkSetup()) return;
+  const words = getWords(currentList);
+  if (words.length < 3) {
+    document.getElementById('storyArea').innerHTML = '<p style="color:var(--dim);text-align:center;margin:2rem;">词库单词太少</p>';
+    return;
+  }
+  document.getElementById('storyArea').innerHTML = '<div class="loading-text">⏳ <span class="spinner"></span> AI 正在编故事...</div>';
+  try {
+    const sample = sampleWords(words, 12);
+    const resp = await callDeepSeek([
+      {role:'system', content:`Write a short story (100-150 words) using ALL these words: ${sample.join(', ')}. Reply in JSON: {"story":"...","all_words":{"word":"meaning",...},"chinese":"全文翻译"}. all_words must contain EVERY word in the story (lowercase). Chinese concise.`},
+      {role:'user', content:'Write the story.'}
+    ], 0.9, 2000);
+    const data = parseJSON(resp.choices[0].message.content);
+    const storyText = data.story || '';
+    const allWords = data.all_words || {};
+    const chinese = data.chinese || '';
+
+    // Build HTML
+    let storyHTML = storyText;
+    let transHTML = storyText;
+    const sorted = [...sample].sort((a,b) => b.length - a.length);
+    sorted.forEach(w => {
+      const zh = allWords[w] || allWords[w.toLowerCase()] || '';
+      const re = new RegExp('\\b('+w.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')\\b','gi');
+      storyHTML = storyHTML.replace(re, (m) => `<b data-zh="${zh||m}" onclick="showPopup(event,this)">${m}</b>`);
+      transHTML = transHTML.replace(re, (m) => `<b data-zh="${zh||m}" onclick="showPopup(event,this)">${m}</b>${zh?`<span class="zh">（${zh}）</span>`:''}`);
+    });
+    // Wrap all words in trans for clickability
+    transHTML = transHTML.replace(/(\b[a-zA-Z][\w'-]*\b)/g, (m, w) => {
+      const zh = allWords[w.toLowerCase()] || '';
+      return `<span class="word" data-zh="${zh}" onclick="showPopup(event,this)">${w}</span>`;
+    });
+
+    const tags = sample.map(w => `<span>${w}</span>`).join('');
+    const storyP = storyHTML.replace(/\n\n/g,'</p><p>').replace(/\n/g,'<br>');
+    const transP = transHTML.replace(/\n\n/g,'</p><p>').replace(/\n/g,'<br>');
+    const chineseP = chinese.replace(/\n/g,'</p><p>');
+
+    document.getElementById('storyArea').innerHTML = `
+      <div class="words-bar">${tags}</div>
+      <div class="section-title">📝 英文故事（目标单词 <b>加粗</b>）</div>
+      <div class="story"><p>${storyP}</p></div>
+      <div class="section-title">🔤 中英对照（点击任意单词看释义）</div>
+      <div class="translation"><p>${transP}</p></div>
+      <div class="section-title">🇨🇳 全文中文翻译</div>
+      <div class="translation"><p>${chineseP}</p></div>
+      <div class="center"><button class="btn" onclick="generateVocabStory()">🔄 换一个故事</button></div>`;
+  } catch(e) {
+    document.getElementById('storyArea').innerHTML = `<div class="error-box">❌ ${e.message}</div>`;
+  }
+}
+
+// ====== GRAMMAR MODE ======
+async function loadGrammarStory() {
+  if (!checkSetup()) return;
+  const storyEl = document.getElementById('grammarStory');
+  const pointsEl = document.getElementById('grammarPoints');
+  const chineseEl = document.getElementById('grammarChinese');
+  const loadingEl = document.getElementById('grammarLoading');
+  storyEl.innerHTML = ''; pointsEl.innerHTML = ''; pointsEl.classList.add('hidden'); chineseEl.classList.add('hidden'); loadingEl.classList.remove('hidden');
+
+  try {
+    const resp = await callDeepSeek([
+      {role:'user', content:`You write dark comedy. Follow these rules EXACTLY.
+
+VOCABULARY: Use ONLY words a 10-year-old native English speaker would know. BANNED: eulogy, deceased, crematorium, mortician, embalmed, casket, probate, bequeath, inheritance, toupee, trowel, urn, epoxy, pivot, grudge, technically — and any formal/SAT word. ALLOWED only simple verbs/nouns/adjectives.
+
+STORY: Write a SHORT story (80-130 words). Dark humor — something awful happens but told so dryly you laugh. Examples of TONE: "My uncle fell into the grave at my aunt's funeral." "The doctor told me I had six months to live, then handed me a bill I couldn't afford." "My boss fired me for being late to his own funeral." Keep it RELATABLE, not abstract.
+
+GRAMMAR: Use 4+ of: subjunctive, inversion, conditional type 3, cleft sentences, participial phrases, complex relatives, passive voice.
+
+Reply in JSON: {"story":"...","grammar":["structure: quote from story",...],"chinese":"全文翻译"}`}
+    ], 1.2, 1200);
+    const data = parseJSON(resp.choices[0].message.content);
+
+    storyEl.innerHTML = '<p>' + (data.story||'').replace(/\n\n/g,'</p><p>').replace(/\n/g,'<br>') + '</p>';
+    if (data.grammar && data.grammar.length) {
+      pointsEl.innerHTML = '<div style="color:var(--purple);font-weight:700;margin-bottom:6px;">📐 语法点</div>' +
+        data.grammar.map(g => `<div class="gp">${g}</div>`).join('');
+      pointsEl.classList.remove('hidden');
+    }
+    if (data.chinese) {
+      chineseEl.innerHTML = '<div style="color:var(--purple);font-weight:700;margin-bottom:6px;">🇨🇳 中文翻译</div>' + data.chinese;
+      chineseEl.classList.remove('hidden');
+    }
+  } catch(e) {
+    storyEl.innerHTML = `<p style="color:#f85149;">❌ ${e.message}</p>`;
+  }
+  loadingEl.classList.add('hidden');
+}
+
+// ====== DRAG & DROP ======
+const ua = document.getElementById('uploadArea');
+ua.addEventListener('dragover', e => { e.preventDefault(); ua.style.borderColor = 'var(--accent)'; });
+ua.addEventListener('dragleave', () => ua.style.borderColor = '');
+ua.addEventListener('drop', e => {
+  e.preventDefault(); ua.style.borderColor = '';
+  const file = e.dataTransfer.files[0];
+  if (file && file.name.endsWith('.txt')) {
+    document.getElementById('fileInput').files = e.dataTransfer.files;
+    onFileSelected({target:{files:[file]}});
+  }
+});
+
+// ====== INIT ======
+if (checkSetup()) {
+  document.getElementById('modeVocab').classList.remove('hidden');
+  initVocab();
+}
+</script>
+</body>
+</html>
