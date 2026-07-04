@@ -79,7 +79,10 @@ h1{font-size:1.7rem;color:var(--head)}
 <div class="container">
   <div style="display:flex;justify-content:space-between;align-items:center;">
     <h1 style="margin:0;">📖 WordWeave</h1>
-    <button class="mode-toggle" id="modeToggle" onclick="toggleMode()">🧠 语法模式</button>
+    <div style="display:flex;gap:8px;">
+      <button class="mode-toggle" style="background:var(--card);color:var(--dim);border-color:var(--border);" onclick="showSettings()" title="修改 API Key">⚙️</button>
+      <button class="mode-toggle" id="modeToggle" onclick="toggleMode()">🧠 语法模式</button>
+    </div>
   </div>
   <p class="subtitle" id="modeSubtitle">单词故事生成器 · 上传你的词库，AI 编故事</p>
 
@@ -89,6 +92,7 @@ h1{font-size:1.7rem;color:var(--head)}
     <p style="color:var(--dim);margin:12px 0;">输入你的 DeepSeek API Key（仅存在你的浏览器里）</p>
     <input type="password" id="apiKeyInput" placeholder="sk-...">
     <button class="btn" onclick="saveKey()">保存</button>
+    <button class="btn-sm danger" style="margin-left:8px;" onclick="clearKey()">🗑 清除 Key</button>
     <p class="hint">在 <a href="https://platform.deepseek.com/api_keys" target="_blank" style="color:var(--blue);">platform.deepseek.com</a> 获取</p>
   </div>
 
@@ -1953,12 +1957,10 @@ function checkSetup() {
   if (!apiKey) {
     document.getElementById('modeVocab').classList.add('hidden');
     document.getElementById('modeGrammar').classList.add('hidden');
-    document.getElementById('modeToggle').classList.add('hidden');
     document.getElementById('setupCard').classList.remove('hidden');
     return false;
   }
   document.getElementById('setupCard').classList.add('hidden');
-  document.getElementById('modeToggle').classList.remove('hidden');
   return true;
 }
 
@@ -1966,9 +1968,22 @@ function saveKey() {
   apiKey = document.getElementById('apiKeyInput').value.trim();
   if (!apiKey) return toast('请输入 API Key');
   localStorage.setItem('dw_key', apiKey);
-  checkSetup();
+  document.getElementById('setupCard').classList.add('hidden');
   document.getElementById('modeVocab').classList.remove('hidden');
   initVocab();
+  toast('API Key 已保存');
+}
+
+function showSettings() {
+  document.getElementById('setupCard').classList.toggle('hidden');
+  document.getElementById('apiKeyInput').value = apiKey || '';
+}
+
+function clearKey() {
+  if (!confirm('确定清除 API Key？')) return;
+  localStorage.removeItem('dw_key');
+  apiKey = '';
+  location.reload();
 }
 
 // ====== TOAST ======
