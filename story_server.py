@@ -84,31 +84,17 @@ def delete_wordlist(name):
 
 def generate_grammar_story():
     """Generate a grammar-rich entertaining story with simple vocabulary."""
-    prompt = """You are a dark-humor comedy writer. Write a SHORT, SHARP story (100-150 words) using COMPLEX GRAMMAR but BASIC vocabulary.
+    prompt = """You write dark comedy. Follow these rules EXACTLY.
 
-TONE: Dark humor, gallows humor, absurd tragedy, or cringe comedy. The kind of story where something terrible happens but it's told so dryly that you can't help laughing. Think: obituary humor, workplace accident that reveals a secret, the worst possible thing said at a funeral, a medical misdiagnosis that turns out to be something stupid, a wedding toast that destroys a family.
+VOCABULARY: Use ONLY words a 10-year-old native English speaker would know. 
+BANNED words: eulogy, deceased, crematorium, mortician, embalmed, casket, probate, bequeath, inheritance, toupee, trowel, urn, epoxy, pivot, grudge, technically, tragedy, comedy, universe, silence, demanded, realized, reconsidered, misplaced, efficient, furious, comedy, tone — and any other formal/literary/SAT word.
+ALLOWED: simple verbs (said, went, did, saw, knew, thought, told, asked, took, put, gave, got, made, found, left, came, ran, sat, stood, ate, drank, laughed, cried, died, fell, hit, broke, lost, won), simple nouns (mom, dad, kid, dog, cat, car, door, phone, pool, house, bed, food, water, fire, blood, money, job, boss, wife, husband, friend, party, school, hospital), simple adjectives (big, small, old, new, good, bad, happy, sad, angry, sick, dead, wrong, right, stupid, smart, rich, poor).
 
-The story must make the reader think "oh no... oh NO... hahaha."
+STORY: Write a SHORT story (80-130 words). The story must be FUNNY in a dark way. The reader should laugh because something awful happened in a ridiculous way. Examples of the TONE I want: "My uncle fell into the grave at my aunt's funeral and landed on the wrong coffin." "The doctor told me I had six months to live, then handed me a bill I couldn't afford." "My boss fired me for being late to his own funeral." "She brought her new boyfriend to meet her husband — who was in a coma." These are RELATABLE dark situations told dryly.
 
-GRAMMAR — use at least 5 of these:
-- Subjunctive mood (If I were..., I wish..., It's time that..., as though...)
-- Inversion (Not only did he..., Never have I..., Had I known..., So absurd was it that...)
-- Conditional type 3 (If she had... she would have...)
-- Complex relative clauses (the person whose..., the reason for which...)
-- Passive voice in perfect/continuous tenses
-- Cleft sentences (It was... that..., What really happened was...)
-- Participial phrases
-- Indirect speech
+GRAMMAR: Use 4+ of: subjunctive, inversion, conditional type 3, cleft sentences, participial phrases, complex relatives, passive.
 
-CRITICAL: Generate a COMPLETELY ORIGINAL story every time. Never repeat characters, settings, or plots. Be unpredictable.
-
-Reply in JSON:
-{
-  "story": "The story...",
-  "grammar": ["structure: quote from story", ...],
-  "chinese": "全文中文翻译"
-}
-"""
+Reply in JSON: {"story": "...", "grammar": ["...", ...], "chinese": "..."}"""
     payload = {
         "model": MODEL,
         "messages": [{"role": "user", "content": prompt}],
