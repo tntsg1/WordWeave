@@ -84,25 +84,33 @@ def delete_wordlist(name):
 
 def generate_grammar_story():
     """Generate a grammar-rich entertaining story with simple vocabulary."""
-    prompt = """You are a witty English writer. Write a short, entertaining story (100-150 words) that uses COMPLEX GRAMMAR but SIMPLE VOCABULARY.
+    prompt = """You are a sharp-tongued English writer. Write a wildly entertaining short story (100-150 words) using COMPLEX GRAMMAR but BASIC vocabulary (middle-school level words only).
 
-Style: dark humor, gossip, or juicy drama — NOT lame jokes. Think: "my coworker's disastrous wedding" or "the scandal at the retirement home".
+STYLE REQUIREMENTS (pick one):
+- Workplace scandal / office drama
+- Dating disaster / wedding gone wrong  
+- Rich people behaving terribly
+- Neighbor from hell
+- Family secret exposed at dinner
 
-Use at least 5 of these grammar structures:
-- Subjunctive mood (If I were..., I wish..., It's time that...)
-- Inversion (Not only did he..., Never have I..., Had I known...)
+The story must be JUICY — people should WANT to read it. Dark humor, gossip, betrayal, embarrassment. Think: "my boss's affair was exposed during the Zoom call" or "the inheritance was stolen by the cat sitter."
+
+GRAMMAR — use at least 5 of these:
+- Subjunctive mood (If I were..., I wish..., It's time that..., as though...)
+- Inversion (Not only did he..., Never have I..., Had I known..., So ridiculous was the situation that...)
 - Conditional type 3 (If she had... she would have...)
-- Relative clauses (the guy who..., the thing that...)
-- Passive voice in complex tenses
-- Cleft sentences (It was... that..., What I need is...)
+- Complex relative clauses (the person whose..., the reason for which...)
+- Passive voice in perfect/continuous tenses
+- Cleft sentences (It was... that..., What really happened was...)
 - Participial phrases
+- Indirect speech / reported thought
 
-Vocabulary must be EASY — words a middle schooler knows. The complexity comes from HOW you arrange them, not the words themselves.
+DO NOT overexplain. DO NOT use SAT vocabulary. Make every sentence a page-turner.
 
 Reply in JSON:
 {
   "story": "The story text...",
-  "grammar": ["grammar point 1 used", "grammar point 2 used", ...],
+  "grammar": ["grammar structure: quote from story showing it", ...],
   "chinese": "全文中文翻译"
 }
 """
