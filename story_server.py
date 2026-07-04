@@ -331,9 +331,18 @@ PAGE_HTML = r"""<!DOCTYPE html>
 <div class="container">
   <div style="display:flex;justify-content:space-between;align-items:center;">
     <h1 style="margin:0;">📖 WordWeave</h1>
-    <button class="mode-toggle" id="modeToggle" onclick="toggleMode()">🧠 语法模式</button>
+    <div style="display:flex;gap:8px;">
+      <button class="mode-toggle" style="background:var(--card);color:var(--dim);border-color:var(--border);" onclick="document.getElementById('settingsBox').classList.toggle('hidden')" title="设置">⚙️</button>
+      <button class="mode-toggle" id="modeToggle" onclick="toggleMode()">🧠 语法模式</button>
+    </div>
   </div>
   <p class="subtitle" id="modeSubtitle">单词故事生成器 · 上传你的词库，AI 编故事</p>
+
+  <!-- Settings box (Python version uses .env) -->
+  <div id="settingsBox" class="hidden" style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:1rem;text-align:center;">
+    <p style="color:var(--dim);">⚙️ Python 服务器版：API Key 在 <code style="background:#21262d;padding:2px 6px;border-radius:4px;">.env</code> 文件中配置</p>
+    <p style="color:var(--dim);font-size:.85rem;">编辑项目目录下的 <code>.env</code> 文件，修改 <code>DEEPSEEK_API_KEY=</code> 后重启服务器</p>
+  </div>
 
   <!-- Toast & Popup -->
   <div class="toast" id="toast"></div>
