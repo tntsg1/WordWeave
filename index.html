@@ -2088,7 +2088,7 @@ async function generateVocabStory() {
   try {
     const sample = sampleWords(words, 12);
     const resp = await callDeepSeek([
-      {role:'system', content:`Write a short story (100-150 words) using ALL these words: ${sample.join(', ')}. Reply in JSON: {"story":"...","all_words":{"word":"meaning",...},"chinese":"全文翻译"}. all_words must contain EVERY word in the story (lowercase). Chinese concise.`},
+      {role:'system', content:`Write a short story (100-150 words) naturally using ALL these words: ${sample.join(', ')}. Reply in JSON: {"story":"...","all_words":{"word":"中文释义",...},"chinese":"全文中文翻译"}. all_words: Chinese translation for EVERY word in the story (lowercase key, 2-6 Chinese chars value). Story must be plain text.`},
       {role:'user', content:'Write the story.'}
     ], 0.9, 2000);
     const data = parseJSON(resp.choices[0].message.content);
@@ -2102,14 +2102,11 @@ async function generateVocabStory() {
     const sorted = [...sample].sort((a,b) => b.length - a.length);
     sorted.forEach(w => {
       const zh = allWords[w] || allWords[w.toLowerCase()] || '';
-      const re = new RegExp('\\b('+w.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')\\b','gi');
-      storyHTML = storyHTML.replace(re, (m) => `<b data-zh="${zh||m}" onclick="showPopup(event,this)">${m}</b>`);
-      transHTML = transHTML.replace(re, (m) => `<b data-zh="${zh||m}" onclick="showPopup(event,this)">${m}</b>${zh?`<span class="zh">（${zh}）</span>`:''}`);
-    });
-    // Wrap all words in trans for clickability
-    transHTML = transHTML.replace(/(\b[a-zA-Z][\w'-]*\b)/g, (m, w) => {
-      const zh = allWords[w.toLowerCase()] || '';
-      return `<span class="word" data-zh="${zh}" onclick="showPopup(event,this)">${w}</span>`;
+      const escaped = w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const re = new RegExp('\\b' + escaped + '\\b', 'gi');
+      const safeZh = (zh || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      storyHTML = storyHTML.replace(re, (m) => `<b data-zh="${safeZh || m}" onclick="showPopup(event,this)">${m}</b>`);
+      transHTML = transHTML.replace(re, (m) => `<b data-zh="${safeZh || m}" onclick="showPopup(event,this)">${m}</b>${zh ? '<span class="zh">（' + safeZh + '）</span>' : ''}`);
     });
 
     const tags = sample.map(w => `<span>${w}</span>`).join('');
