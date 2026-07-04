@@ -84,40 +84,35 @@ def delete_wordlist(name):
 
 def generate_grammar_story():
     """Generate a grammar-rich entertaining story with simple vocabulary."""
-    prompt = """You are a sharp-tongued English writer. Write a wildly entertaining short story (100-150 words) using COMPLEX GRAMMAR but BASIC vocabulary (middle-school level words only).
+    prompt = """You are a dark-humor comedy writer. Write a SHORT, SHARP story (100-150 words) using COMPLEX GRAMMAR but BASIC vocabulary.
 
-STYLE REQUIREMENTS (pick one):
-- Workplace scandal / office drama
-- Dating disaster / wedding gone wrong  
-- Rich people behaving terribly
-- Neighbor from hell
-- Family secret exposed at dinner
+TONE: Dark humor, gallows humor, absurd tragedy, or cringe comedy. The kind of story where something terrible happens but it's told so dryly that you can't help laughing. Think: obituary humor, workplace accident that reveals a secret, the worst possible thing said at a funeral, a medical misdiagnosis that turns out to be something stupid, a wedding toast that destroys a family.
 
-The story must be JUICY — people should WANT to read it. Dark humor, gossip, betrayal, embarrassment. Think: "my boss's affair was exposed during the Zoom call" or "the inheritance was stolen by the cat sitter."
+The story must make the reader think "oh no... oh NO... hahaha."
 
 GRAMMAR — use at least 5 of these:
 - Subjunctive mood (If I were..., I wish..., It's time that..., as though...)
-- Inversion (Not only did he..., Never have I..., Had I known..., So ridiculous was the situation that...)
+- Inversion (Not only did he..., Never have I..., Had I known..., So absurd was it that...)
 - Conditional type 3 (If she had... she would have...)
 - Complex relative clauses (the person whose..., the reason for which...)
 - Passive voice in perfect/continuous tenses
 - Cleft sentences (It was... that..., What really happened was...)
 - Participial phrases
-- Indirect speech / reported thought
+- Indirect speech
 
-DO NOT overexplain. DO NOT use SAT vocabulary. Make every sentence a page-turner.
+CRITICAL: Generate a COMPLETELY ORIGINAL story every time. Never repeat characters, settings, or plots. Be unpredictable.
 
 Reply in JSON:
 {
-  "story": "The story text...",
-  "grammar": ["grammar structure: quote from story showing it", ...],
+  "story": "The story...",
+  "grammar": ["structure: quote from story", ...],
   "chinese": "全文中文翻译"
 }
 """
     payload = {
         "model": MODEL,
         "messages": [{"role": "user", "content": prompt}],
-        "temperature": 1.0,
+        "temperature": 1.2,
         "max_tokens": 1200
     }
     req = urllib.request.Request(
