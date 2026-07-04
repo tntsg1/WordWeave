@@ -82,6 +82,50 @@ def delete_wordlist(name):
         return True
     return False
 
+def generate_grammar_story():
+    """Generate a grammar-rich entertaining story with simple vocabulary."""
+    prompt = """You are a witty English writer. Write a short, entertaining story (100-150 words) that uses COMPLEX GRAMMAR but SIMPLE VOCABULARY.
+
+Style: dark humor, gossip, or juicy drama — NOT lame jokes. Think: "my coworker's disastrous wedding" or "the scandal at the retirement home".
+
+Use at least 5 of these grammar structures:
+- Subjunctive mood (If I were..., I wish..., It's time that...)
+- Inversion (Not only did he..., Never have I..., Had I known...)
+- Conditional type 3 (If she had... she would have...)
+- Relative clauses (the guy who..., the thing that...)
+- Passive voice in complex tenses
+- Cleft sentences (It was... that..., What I need is...)
+- Participial phrases
+
+Vocabulary must be EASY — words a middle schooler knows. The complexity comes from HOW you arrange them, not the words themselves.
+
+Reply in JSON:
+{
+  "story": "The story text...",
+  "grammar": ["grammar point 1 used", "grammar point 2 used", ...],
+  "chinese": "全文中文翻译"
+}
+"""
+    payload = {
+        "model": MODEL,
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": 1.0,
+        "max_tokens": 1200
+    }
+    req = urllib.request.Request(
+        f"{API_BASE}/chat/completions",
+        data=json.dumps(payload).encode('utf-8'),
+        headers={"Content-Type": "application/json", "Authorization": f"Bearer {API_KEY}"}
+    )
+    with urllib.request.urlopen(req, timeout=60) as resp:
+        raw = json.loads(resp.read().decode('utf-8'))
+        content = raw['choices'][0]['message']['content'].strip()
+        if content.startswith('```'):
+            content = content.split('\n', 1)[1].rstrip('```').strip()
+        data = json.loads(content)
+        return data.get('story', ''), data.get('grammar', []), data.get('chinese', '')
+
+
 def generate_story(words):
     word_list = ', '.join(words)
     system_prompt = """You are a creative English writer. Write a short, engaging story (100-180 words) in natural English.
@@ -277,6 +321,15 @@ PAGE_HTML = r"""<!DOCTYPE html>
   .word { cursor: pointer; }
   .word:hover { background: rgba(88,166,255,0.12); border-radius: 2px; }
 
+  /* --- Grammar section --- */
+  .grammar-title { color: #d2a8ff; margin-top: 2rem; }
+  .grammar-card { background: var(--card); border: 1px solid #d2a8ff33; border-radius: 10px; padding: 20px; margin-bottom: 1.5rem; }
+  .grammar-story { line-height: 1.9; font-size: 1rem; text-align: justify; font-family: 'Georgia', 'Noto Serif SC', serif; margin-bottom: 0.8rem; }
+  .grammar-points { background: #1a1228; border: 1px solid #d2a8ff22; border-radius: 8px; padding: 12px 16px; margin-top: 12px; }
+  .grammar-points .gp { color: #d2a8ff; font-size: 0.85rem; padding: 3px 0; }
+  .grammar-points .gp::before { content: '▸ '; color: #8b949e; }
+  .grammar-chinese { margin-top: 12px; color: var(--dim); font-size: 0.92rem; line-height: 1.8; }
+
 </style>
 </head>
 <body>
@@ -307,6 +360,17 @@ PAGE_HTML = r"""<!DOCTYPE html>
     <span class="info" id="wordCount"></span>
   </div>
 
+  <!-- Grammar Practice Section -->
+  <div class="section-title grammar-title">🧠 语法实战 · 地狱难度</div>
+  <div class="grammar-card" id="grammarCard">
+    <div class="grammar-story" id="grammarStory"></div>
+    <div class="grammar-points hidden" id="grammarPoints"></div>
+    <div class="grammar-chinese hidden" id="grammarChinese"></div>
+    <div class="loading-text" id="grammarLoading">⏳ <span class="spinner"></span> AI 正在编...</div>
+    <button class="btn-sm" style="margin-top:10px;" onclick="loadGrammarStory()">🔄 换一篇</button>
+  </div>
+
+  <!-- Word Story Section -->
   <p class="refresh-hint">按 <kbd>F5</kbd> 或点击按钮刷新，生成新故事</p>
 
   <!-- Loading -->
@@ -403,6 +467,44 @@ ua.addEventListener('drop', e => {
 });
 
 fetchLists();
+
+// --- Grammar story ---
+async function loadGrammarStory() {
+  const card = document.getElementById('grammarCard');
+  const storyEl = document.getElementById('grammarStory');
+  const pointsEl = document.getElementById('grammarPoints');
+  const chineseEl = document.getElementById('grammarChinese');
+  const loadingEl = document.getElementById('grammarLoading');
+
+  storyEl.innerHTML = '';
+  pointsEl.innerHTML = '';
+  pointsEl.classList.add('hidden');
+  chineseEl.classList.add('hidden');
+  loadingEl.classList.remove('hidden');
+
+  try {
+    const r = await fetch('/api/grammar');
+    const data = await r.json();
+    if (data.error) throw new Error(data.error);
+
+    storyEl.innerHTML = '<p>' + data.story.replace(/\n\n/g, '</p><p>').replace(/\n/g, '<br>') + '</p>';
+
+    if (data.grammar && data.grammar.length) {
+      pointsEl.innerHTML = '<div style="color:#d2a8ff;font-weight:700;margin-bottom:4px;">📐 语法点</div>' +
+        data.grammar.map(g => '<div class="gp">' + g + '</div>').join('');
+      pointsEl.classList.remove('hidden');
+    }
+
+    if (data.chinese) {
+      chineseEl.innerHTML = '<div style="color:#d2a8ff;font-weight:700;margin-bottom:4px;">🇨🇳 中文翻译</div>' + data.chinese;
+      chineseEl.classList.remove('hidden');
+    }
+  } catch(e) {
+    storyEl.innerHTML = '<p style="color:var(--danger);">❌ ' + e.message + '</p>';
+  }
+  loadingEl.classList.add('hidden');
+}
+loadGrammarStory();
 
 // --- Vocab popup ---
 let popupTimer = null;
@@ -527,6 +629,14 @@ class WordWeaveHandler(http.server.BaseHTTPRequestHandler):
         # API: list wordlists
         if path == '/api/lists':
             return self._json({"lists": list_wordlists()})
+
+        # API: grammar story
+        if path == '/api/grammar':
+            try:
+                story, grammar, chinese = generate_grammar_story()
+                return self._json({"story": story, "grammar": grammar, "chinese": chinese})
+            except Exception as e:
+                return self._json({"error": str(e)}, 500)
 
         # Main page
         if path == '/' or path == '':
