@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-SAT Vocabulary Story Generator
-每次刷新页面自动生成包含SAT单词的英文小故事，目标单词加粗，
-下方附带同样故事但单词后标注中文释义。
+WordWeave — Vocabulary Story Generator
+上传任意单词表（一行一单词），自动用 AI 生成英文小故事。
+目标单词高亮加粗，附带中文释义。
 
 Usage:
     python story_server.py
@@ -11,18 +11,21 @@ Usage:
 
 import http.server
 import urllib.request
+import urllib.parse
 import json
 import random
 import os
 import sys
+import re
 from pathlib import Path
+from io import BytesIO
 
 # ===== CONFIG =====
 PORT = 8888
-WORDS_FILE = Path(__file__).parent / "TD_SAT_Golden_Words.txt"
 WORDS_PER_STORY = 12
+WORDLISTS_DIR = Path(__file__).parent / "wordlists"
 
-# API Key: 优先环境变量 → 本地 .env 文件
+# API Key
 def _load_api_key():
     key = os.environ.get("DEEPSEEK_API_KEY") or os.environ.get("OPENAI_API_KEY")
     if key:
@@ -44,79 +47,43 @@ MODEL = os.environ.get("STORY_MODEL", "deepseek-chat")
 
 # ==================
 
-HTML_TEMPLATE = """<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SAT 单词故事生成器</title>
-<style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: 'Georgia', 'Times New Roman', 'Noto Serif SC', serif; background: #0d1117; color: #c9d1d9; min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 2rem; }
-  .container { max-width: 800px; width: 100%; }
-  h1 { text-align: center; font-size: 1.8rem; margin-bottom: 0.3rem; color: #f0f6fc; }
-  .subtitle { text-align: center; color: #8b949e; margin-bottom: 2rem; font-size: 0.9rem; }
-  .words-bar { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 12px 16px; margin-bottom: 1.5rem; display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
-  .words-bar span { background: #1f6feb22; color: #58a6ff; border: 1px solid #1f6feb44; padding: 3px 10px; border-radius: 12px; font-size: 0.85rem; }
-  .section-title { font-size: 1.1rem; color: #f0f6fc; margin-bottom: 0.8rem; padding-bottom: 6px; border-bottom: 1px solid #30363d; }
-  .story { background: #161b22; border: 1px solid #30363d; border-radius: 10px; padding: 24px; margin-bottom: 2rem; line-height: 2; font-size: 1.05rem; text-align: justify; }
-  .story b { color: #ffa657; font-weight: 700; }
-  .translation { background: #161b22; border: 1px solid #30363d; border-radius: 10px; padding: 24px; margin-bottom: 2rem; line-height: 2; font-size: 1.05rem; text-align: justify; }
-  .translation b { color: #ffa657; font-weight: 700; }
-  .translation .zh { color: #7ee787; font-size: 0.9rem; margin-left: 2px; }
-  .refresh-hint { text-align: center; color: #484f58; font-size: 0.85rem; margin-bottom: 1rem; }
-  .refresh-hint kbd { background: #21262d; border: 1px solid #30363d; border-radius: 4px; padding: 2px 6px; font-family: monospace; }
-  .error { background: #49020233; border: 1px solid #f8514966; border-radius: 8px; padding: 16px; color: #f85149; margin-bottom: 1.5rem; }
-  .btn { display: inline-block; background: #238636; color: #fff; border: none; padding: 10px 24px; border-radius: 6px; cursor: pointer; font-size: 1rem; transition: background 0.2s; text-decoration: none; }
-  .btn:hover { background: #2ea043; }
-  .center { text-align: center; margin-top: 1rem; }
-</style>
-</head>
-<body>
-<div class="container">
-  <h1>📖 SAT 单词故事</h1>
-  <p class="subtitle">TD SAT 黄金单词 5.0 · 刷新即换新故事</p>
+def ensure_wordlists_dir():
+    WORDLISTS_DIR.mkdir(exist_ok=True)
 
-  <div class="words-bar">
-    {word_tags}
-  </div>
+def list_wordlists():
+    ensure_wordlists_dir()
+    lists = []
+    for f in sorted(WORDLISTS_DIR.glob("*.txt")):
+        with open(f, 'r', encoding='utf-8') as fh:
+            count = sum(1 for l in fh if l.strip())
+        lists.append({"name": f.stem, "file": f.name, "count": count})
+    return lists
 
-  <p class="refresh-hint">按 <kbd>F5</kbd> 或点击下方按钮刷新，生成全新故事</p>
-
-  <div class="section-title">📝 英文故事（目标单词 <b>加粗</b>）</div>
-  <div class="story">
-    {story_html}
-  </div>
-
-  <div class="section-title">🔤 带中文释义</div>
-  <div class="translation">
-    {translation_html}
-  </div>
-
-  <div class="center">
-    <a class="btn" href="javascript:location.reload()">🔄 换一个故事</a>
-  </div>
-</div>
-</body>
-</html>"""
-
-
-def load_words():
-    if not WORDS_FILE.exists():
-        print(f"ERROR: {WORDS_FILE} not found!")
-        sys.exit(1)
-    with open(WORDS_FILE, 'r', encoding='utf-8') as f:
+def load_wordlist(name):
+    path = WORDLISTS_DIR / f"{name}.txt"
+    if not path.exists():
+        return []
+    with open(path, 'r', encoding='utf-8') as f:
         return [line.strip() for line in f if line.strip()]
 
+def save_wordlist(name, content):
+    ensure_wordlists_dir()
+    # Sanitize filename
+    safe = re.sub(r'[^\w\-_]', '_', name)
+    path = WORDLISTS_DIR / f"{safe}.txt"
+    with open(path, 'w', encoding='utf-8') as f:
+        f.write(content)
+    return safe
 
-def sample_words(all_words, n=WORDS_PER_STORY):
-    return random.sample(all_words, min(n, len(all_words)))
-
+def delete_wordlist(name):
+    path = WORDLISTS_DIR / f"{name}.txt"
+    if path.exists():
+        path.unlink()
+        return True
+    return False
 
 def generate_story(words):
-    """Call LLM API to generate a short story using the given words."""
     word_list = ', '.join(words)
-
     system_prompt = """You are a creative English writer. Write a short, engaging story (150-300 words) in natural English.
 The story MUST naturally incorporate ALL of the provided vocabulary words.
 Make the story coherent, interesting, and appropriate for a high school student.
@@ -155,58 +122,32 @@ IMPORTANT:
         }
     )
 
-    try:
-        with urllib.request.urlopen(req, timeout=60) as resp:
-            raw_data = json.loads(resp.read().decode('utf-8'))
-            content = raw_data['choices'][0]['message']['content']
-            print(f"  Raw response: {content[:200]}...")
-
-            # Strip markdown code blocks
+    with urllib.request.urlopen(req, timeout=90) as resp:
+        raw_data = json.loads(resp.read().decode('utf-8'))
+        content = raw_data['choices'][0]['message']['content']
+        content = content.strip()
+        if content.startswith('```'):
+            lines = content.split('\n')
+            content = '\n'.join(lines[1:])
+            if content.endswith('```'):
+                content = content[:-3]
             content = content.strip()
-            if content.startswith('```'):
-                lines = content.split('\n')
-                content = '\n'.join(lines[1:])
-                if content.endswith('```'):
-                    content = content[:-3]
-                content = content.strip()
-
-            # Handle Python repr-style wrapping (single quotes around JSON)
-            if content.startswith("'") and content.endswith("'"):
-                content = content[1:-1]
-
-            result = json.loads(content)
-            story = result.get('story', result.get('story_text', ''))
-            translations = result.get('translations', result.get('words', {}))
-            if not story:
-                raise ValueError(f"No story found in response: {list(result.keys())}")
-            return story, translations
-    except json.JSONDecodeError as e:
-        print(f"  JSON parse error: {e}")
-        print(f"  Content was: {content[:500]}")
-        raise
-    except Exception as e:
-        print(f"  API Error: {e}")
-        raise
+        if content.startswith("'") and content.endswith("'"):
+            content = content[1:-1]
+        result = json.loads(content)
+        story = result.get('story', result.get('story_text', ''))
+        translations = result.get('translations', result.get('words', {}))
+        return story, translations
 
 
 def format_story(story_text, words, translations):
-    """Bold vocabulary words in story text and prepare translation version."""
-    import re
-
-    # Build a mapping of lowercase word -> bold version
     story_html = story_text
     translation_html = story_text
-
-    # Sort by length descending to avoid partial matches (e.g., "act" matching inside "actual")
     sorted_words = sorted(words, key=len, reverse=True)
-
     for word in sorted_words:
         zh = translations.get(word, translations.get(word.lower(), ''))
-        # Case-insensitive replacement preserving original case
         pattern = re.compile(r'\b(' + re.escape(word) + r')\b', re.IGNORECASE)
-
         story_html = pattern.sub(r'<b>\1</b>', story_html)
-
         if zh:
             translation_html = pattern.sub(
                 lambda m: f'<b>{m.group(1)}</b><span class="zh">（{zh}）</span>',
@@ -214,88 +155,374 @@ def format_story(story_text, words, translations):
             )
         else:
             translation_html = pattern.sub(r'<b>\1</b>', translation_html)
-
     return story_html, translation_html
 
 
-def build_page(story_text, translations, words):
-    story_html, translation_html = format_story(story_text, words, translations)
+PAGE_HTML = r"""<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WordWeave · 单词故事</title>
+<style>
+  :root { --bg: #0d1117; --card: #161b22; --border: #30363d; --text: #c9d1d9; --heading: #f0f6fc; --accent: #ffa657; --green: #7ee787; --blue: #58a6ff; --btn: #238636; --btn-hover: #2ea043; --danger: #da3633; --dim: #8b949e; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', 'Noto Sans SC', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 1.5rem; }
+  .container { max-width: 860px; width: 100%; }
+  h1 { text-align: center; font-size: 1.7rem; color: var(--heading); margin-bottom: 0.2rem; }
+  .subtitle { text-align: center; color: var(--dim); font-size: 0.85rem; margin-bottom: 1.5rem; }
 
-    # Escape for paragraph display
+  /* --- Toolbar --- */
+  .toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; }
+  .toolbar select { background: var(--card); color: var(--text); border: 1px solid var(--border); padding: 6px 12px; border-radius: 6px; font-size: 0.9rem; min-width: 180px; }
+  .toolbar .btn-sm { font-size: 0.85rem; padding: 6px 14px; border-radius: 6px; border: 1px solid var(--border); cursor: pointer; text-decoration: none; background: var(--card); color: var(--text); white-space: nowrap; }
+  .toolbar .btn-sm.danger { color: var(--danger); border-color: var(--danger); }
+  .toolbar .btn-sm.danger:hover { background: var(--danger); color: #fff; }
+  .toolbar .btn-sm:hover { background: #21262d; }
+  .toolbar .info { font-size: 0.8rem; color: var(--dim); margin-left: auto; }
+
+  /* --- Upload --- */
+  .upload-area { background: var(--card); border: 2px dashed var(--border); border-radius: 10px; padding: 20px; text-align: center; margin-bottom: 1rem; cursor: pointer; transition: border-color 0.2s; }
+  .upload-area:hover { border-color: var(--blue); }
+  .upload-area input[type=file] { display: none; }
+  .upload-area p { color: var(--dim); font-size: 0.9rem; }
+  .upload-area .name-hint { color: var(--blue); }
+  .upload-row { display: flex; gap: 10px; align-items: center; margin-top: 10px; justify-content: center; }
+  .upload-row input[type=text] { background: var(--bg); color: var(--text); border: 1px solid var(--border); padding: 6px 10px; border-radius: 6px; font-size: 0.9rem; width: 200px; }
+  .upload-row button { background: var(--btn); color: #fff; border: none; padding: 7px 16px; border-radius: 6px; cursor: pointer; font-size: 0.9rem; }
+  .upload-row button:hover { background: var(--btn-hover); }
+
+  /* --- Story area --- */
+  .words-bar { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; margin-bottom: 1rem; display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+  .words-bar span { background: #1f6feb22; color: var(--blue); border: 1px solid #1f6feb44; padding: 2px 9px; border-radius: 11px; font-size: 0.82rem; }
+  .section-title { font-size: 1.05rem; color: var(--heading); margin: 1rem 0 0.6rem; padding-bottom: 5px; border-bottom: 1px solid var(--border); }
+  .story, .translation { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 22px; margin-bottom: 1.2rem; line-height: 1.9; font-size: 1rem; text-align: justify; font-family: 'Georgia', 'Noto Serif SC', serif; }
+  .story b, .translation b { color: var(--accent); font-weight: 700; }
+  .translation .zh { color: var(--green); font-size: 0.88rem; }
+  .refresh-hint { text-align: center; color: #484f58; font-size: 0.8rem; margin: 0.5rem 0; }
+  .refresh-hint kbd { background: #21262d; border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; font-family: monospace; }
+  .btn { display: inline-block; background: var(--btn); color: #fff; border: none; padding: 9px 22px; border-radius: 6px; cursor: pointer; font-size: 0.95rem; text-decoration: none; transition: background 0.2s; }
+  .btn:hover { background: var(--btn-hover); }
+  .center { text-align: center; margin-top: 1rem; }
+  .error-box { background: #49020233; border: 1px solid #f8514966; border-radius: 8px; padding: 16px; color: #f85149; margin-bottom: 1rem; }
+  .hidden { display: none; }
+  .toast { position: fixed; top: 16px; right: 16px; background: var(--btn); color: #fff; padding: 10px 18px; border-radius: 8px; font-size: 0.9rem; z-index: 999; opacity: 0; transition: opacity 0.3s; pointer-events: none; }
+  .toast.show { opacity: 1; }
+
+  /* Loading spinner */
+  .spinner { display: inline-block; width: 18px; height: 18px; border: 2px solid var(--dim); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: middle; margin-right: 6px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-text { color: var(--dim); font-style: italic; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>📖 WordWeave</h1>
+  <p class="subtitle">单词故事生成器 · 上传你的词库，AI 编故事</p>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <!-- Upload area -->
+  <div class="upload-area" id="uploadArea" onclick="document.getElementById('fileInput').click()">
+    <p>📂 拖放或点击上传单词表 <span class="name-hint">（.txt，一行一个单词）</span></p>
+    <input type="file" id="fileInput" accept=".txt" onchange="onFileSelected(event)">
+    <div class="upload-row hidden" id="uploadRow">
+      <input type="text" id="listName" placeholder="输入词库名称">
+      <button onclick="doUpload()">⬆️ 上传</button>
+    </div>
+  </div>
+
+  <!-- Toolbar -->
+  <div class="toolbar">
+    <select id="listSelect" onchange="switchList()"></select>
+    <button class="btn-sm danger hidden" id="deleteBtn" onclick="deleteList()">🗑 删除</button>
+    <span class="info" id="wordCount"></span>
+  </div>
+
+  <p class="refresh-hint">按 <kbd>F5</kbd> 或点击按钮刷新，生成新故事</p>
+
+  <!-- Loading -->
+  <div class="center loading-text hidden" id="loading">⏳ <span class="spinner"></span> AI 正在编故事...</div>
+
+  <!-- Story area — replaced by server -->
+  <div id="storyArea"></div>
+
+  <div class="center">
+    <a class="btn" href="javascript:location.reload()">🔄 换一个故事</a>
+  </div>
+
+  <div class="error-box hidden" id="errorBox"></div>
+</div>
+
+<script>
+let currentList = '__CURRENT__';
+
+async function fetchLists() {
+  const r = await fetch('/api/lists');
+  const data = await r.json();
+  const sel = document.getElementById('listSelect');
+  sel.innerHTML = '';
+  data.lists.forEach(l => {
+    const opt = document.createElement('option');
+    opt.value = l.name;
+    opt.textContent = `${l.name} (${l.count} 词)`;
+    opt.selected = (l.name === currentList);
+    sel.appendChild(opt);
+  });
+  document.getElementById('wordCount').textContent = '';
+  const active = data.lists.find(l => l.name === currentList);
+  if (active) document.getElementById('wordCount').textContent = `共 ${active.count} 词`;
+  document.getElementById('deleteBtn').classList.toggle('hidden', !active || active.name === 'TD_SAT_Golden_Words');
+}
+
+function switchList() {
+  const name = document.getElementById('listSelect').value;
+  window.location.href = '/?list=' + encodeURIComponent(name);
+}
+
+async function deleteList() {
+  if (!confirm('确定删除这个词库？')) return;
+  await fetch('/api/delete?list=' + encodeURIComponent(currentList), { method: 'POST' });
+  toast('已删除');
+  window.location.href = '/';
+}
+
+function onFileSelected(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const row = document.getElementById('uploadRow');
+  row.classList.remove('hidden');
+  const nameInput = document.getElementById('listName');
+  nameInput.value = file.name.replace(/\.txt$/i, '');
+}
+
+async function doUpload() {
+  const file = document.getElementById('fileInput').files[0];
+  const name = document.getElementById('listName').value.trim();
+  if (!file || !name) return toast('请选择文件并输入名称');
+  const form = new FormData();
+  form.append('file', file);
+  form.append('name', name);
+  const r = await fetch('/upload', { method: 'POST', body: form });
+  if (r.ok) {
+    toast('上传成功！');
+    window.location.href = '/?list=' + encodeURIComponent(name);
+  } else {
+    const t = await r.text();
+    toast('上传失败: ' + t);
+  }
+}
+
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// Drag & drop
+const ua = document.getElementById('uploadArea');
+ua.addEventListener('dragover', e => { e.preventDefault(); ua.style.borderColor = 'var(--accent)'; });
+ua.addEventListener('dragleave', () => ua.style.borderColor = '');
+ua.addEventListener('drop', e => {
+  e.preventDefault();
+  ua.style.borderColor = '';
+  const file = e.dataTransfer.files[0];
+  if (file && file.name.endsWith('.txt')) {
+    document.getElementById('fileInput').files = e.dataTransfer.files;
+    onFileSelected({ target: { files: [file] } });
+  }
+});
+
+fetchLists();
+</script>
+</body>
+</html>"""
+
+
+STORY_SECTION = """
+  <div class="words-bar">{word_tags}</div>
+  <div class="section-title">📝 英文故事（目标单词 <b>加粗</b>）</div>
+  <div class="story">{story_html}</div>
+  <div class="section-title">🔤 带中文释义</div>
+  <div class="translation">{translation_html}</div>
+"""
+
+ERROR_SECTION = """
+  <div class="error-box"><b>❌ 生成失败</b><br>{error}</div>
+"""
+
+
+def build_story_html(story_text, translations, words):
+    story_html, translation_html = format_story(story_text, words, translations)
     story_html = story_html.replace('\n\n', '</p><p>').replace('\n', '<br>')
     story_html = f'<p>{story_html}</p>'
     translation_html = translation_html.replace('\n\n', '</p><p>').replace('\n', '<br>')
     translation_html = f'<p>{translation_html}</p>'
-
     word_tags = '\n    '.join(f'<span>{w}</span>' for w in words)
-
-    # Use simple string replace to avoid format() choking on { } in story text
-    page = HTML_TEMPLATE
-    page = page.replace('{word_tags}', word_tags)
-    page = page.replace('{story_html}', story_html)
-    page = page.replace('{translation_html}', translation_html)
-    return page
+    return STORY_SECTION.format(
+        word_tags=word_tags,
+        story_html=story_html,
+        translation_html=translation_html
+    )
 
 
-class StoryHandler(http.server.BaseHTTPRequestHandler):
-    all_words = []
-    _loaded = False
+class WordWeaveHandler(http.server.BaseHTTPRequestHandler):
 
-    @classmethod
-    def load(cls):
-        if not cls._loaded:
-            cls.all_words = load_words()
-            cls._loaded = True
+    def _json(self, data, code=200):
+        body = json.dumps(data, ensure_ascii=False).encode('utf-8')
+        self.send_response(code)
+        self.send_header('Content-Type', 'application/json; charset=utf-8')
+        self.send_header('Content-Length', str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _html(self, html, code=200):
+        body = html.encode('utf-8')
+        self.send_response(code)
+        self.send_header('Content-Type', 'text/html; charset=utf-8')
+        self.send_header('Content-Length', str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _error(self, msg, code=400):
+        self._html(f'<html><body style="font-family:sans-serif;background:#0d1117;color:#f85149;padding:2rem;"><h2>Error</h2><p>{msg}</p></body></html>', code)
 
     def do_GET(self):
-        self.load()
-        try:
-            words = sample_words(self.all_words)
-            print(f"\n📝 Generating story with words: {', '.join(words)}")
-            story_text, translations = generate_story(words)
-            page = build_page(story_text, translations, words)
-            self.send_response(200)
-            self.send_header('Content-Type', 'text/html; charset=utf-8')
-            self.end_headers()
-            self.wfile.write(page.encode('utf-8'))
-            print(f"✅ Story generated ({len(story_text.split())} words)")
-        except Exception as e:
-            error_html = f"""<!DOCTYPE html><html><head><meta charset="UTF-8"><style>body{{font-family:sans-serif;background:#0d1117;color:#f85149;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;}}div{{text-align:center;}}a{{color:#58a6ff;}}</style></head><body><div><h2>❌ 生成失败</h2><p>{e}</p><p>请检查 API Key 是否正确配置</p><a href="/">重试</a></div></body></html>"""
-            self.send_response(500)
-            self.send_header('Content-Type', 'text/html; charset=utf-8')
-            self.end_headers()
-            self.wfile.write(error_html.encode('utf-8'))
+        parsed = urllib.parse.urlparse(self.path)
+        path = parsed.path
+        qs = urllib.parse.parse_qs(parsed.query)
+
+        # API: list wordlists
+        if path == '/api/lists':
+            return self._json({"lists": list_wordlists()})
+
+        # Main page
+        if path == '/' or path == '':
+            list_name = (qs.get('list', [None])[0] or '').strip()
+            wordlists = list_wordlists()
+
+            # Pick list
+            active_list = None
+            if list_name:
+                active_list = next((l for l in wordlists if l['name'] == list_name), None)
+            if not active_list and wordlists:
+                active_list = wordlists[0]
+            if not active_list:
+                # No lists at all — show bare upload page
+                page = PAGE_HTML.replace('__CURRENT__', '')
+                page = page.replace('<div id="storyArea">', '<div id="storyArea"><p style="text-align:center;color:var(--dim);margin:2rem;">还没有词库，上传一个 .txt 开始吧 👆</p>')
+                return self._html(page)
+
+            words = load_wordlist(active_list['name'])
+            if len(words) < 3:
+                story_section = '<p style="text-align:center;color:var(--dim);margin:2rem;">词库单词太少（至少需要 3 个），请上传更多单词</p>'
+            else:
+                try:
+                    sample = random.sample(words, min(WORDS_PER_STORY, len(words)))
+                    print(f"\n📝 [{active_list['name']}] Generating story with: {', '.join(sample)}")
+                    story_text, translations = generate_story(sample)
+                    story_section = build_story_html(story_text, translations, sample)
+                    print(f"✅ Story generated ({len(story_text.split())} words)")
+                except Exception as e:
+                    story_section = ERROR_SECTION.format(error=str(e))
+                    print(f"❌ Error: {e}")
+
+            page = PAGE_HTML.replace('__CURRENT__', active_list['name'])
+            page = page.replace('<div id="storyArea">', f'<div id="storyArea">{story_section}')
+            return self._html(page)
+
+        # 404
+        return self._error("Not found", 404)
+
+    def do_POST(self):
+        parsed = urllib.parse.urlparse(self.path)
+        path = parsed.path
+        qs = urllib.parse.parse_qs(parsed.query)
+
+        # Upload
+        if path == '/upload':
+            content_type = self.headers.get('Content-Type', '')
+            if 'multipart/form-data' not in content_type:
+                return self._error("Expected multipart/form-data", 400)
+
+            # Parse multipart
+            boundary = content_type.split('boundary=')[1].strip()
+            body = self.rfile.read(int(self.headers.get('Content-Length', 0)))
+
+            # Simple multipart parser
+            parts = body.split(b'--' + boundary.encode())
+            name_val = None
+            file_content = None
+
+            for part in parts:
+                if b'Content-Disposition' not in part:
+                    continue
+                headers, _, data = part.partition(b'\r\n\r\n')
+                data = data.rstrip(b'\r\n--')
+
+                hdr_text = headers.decode('utf-8', errors='replace')
+                if 'name="name"' in hdr_text:
+                    name_val = data.decode('utf-8').strip()
+                elif 'name="file"' in hdr_text:
+                    # Skip the trailing boundary marker
+                    file_content = data
+
+            if not name_val or not file_content:
+                return self._error("Missing name or file", 400)
+
+            safe_name = save_wordlist(name_val, file_content.decode('utf-8', errors='replace'))
+            print(f"📂 Uploaded wordlist: {safe_name}")
+            return self._html("<html><body style='font-family:sans-serif;background:#0d1117;color:#7ee787;padding:2rem;text-align:center;'><h2>✅ 上传成功</h2><p><a href='/?list=" + urllib.parse.quote(safe_name) + "' style='color:#58a6ff;'>点击查看</a></p></body></html>")
+
+        # Delete wordlist
+        if path == '/api/delete':
+            list_name = (qs.get('list', [None])[0] or '').strip()
+            if not list_name:
+                return self._error("Missing list name", 400)
+            if list_name == 'TD_SAT_Golden_Words':
+                return self._error("不能删除默认词库", 403)
+            if delete_wordlist(list_name):
+                return self._json({"ok": True})
+            return self._error("Not found", 404)
+
+        return self._error("Not found", 404)
 
     def log_message(self, format, *args):
         print(f"[{self.log_date_time_string()}] {args[0]}")
 
 
 def main():
+    ensure_wordlists_dir()
+
+    # Seed with default SAT list if wordlists/ is empty
+    default_source = Path(__file__).parent / "TD_SAT_Golden_Words.txt"
+    default_dest = WORDLISTS_DIR / "TD_SAT_Golden_Words.txt"
+    if default_source.exists() and not default_dest.exists():
+        import shutil
+        shutil.copy(default_source, default_dest)
+        print("📋 已导入默认 SAT 词库")
+
     print(f"""
 ╔══════════════════════════════════════════╗
-║   📖 SAT Vocabulary Story Generator    ║
+║       📖 WordWeave · 单词故事          ║
 ║   浏览器打开: http://localhost:{PORT}     ║
-║   按 F5 或 Ctrl+R 刷新 → 新故事       ║
-║   按 Ctrl+C 停止服务器                  ║
+║   上传 .txt → 自动编故事               ║
+║   按 F5 刷新 → 换新故事               ║
 ╚══════════════════════════════════════════╝
 """)
-
-    # Verify config
     if API_KEY == "YOUR_API_KEY_HERE":
-        print("⚠️  警告: 未设置 API Key！")
-        print("   设置方法: set DEEPSEEK_API_KEY=your-key-here")
-        print("   或在系统环境变量中设置 OPENAI_API_KEY")
-        print()
+        print("⚠️  警告: 未设置 API Key！请编辑 .env 文件\n")
 
-    print(f"📂 单词文件: {WORDS_FILE}")
-    print(f"📊 单词总数: {len(load_words())}")
-    print(f"🤖 模型: {MODEL}")
-    print(f"🔗 API: {API_BASE}")
+    wl = list_wordlists()
+    print(f"📚 已加载词库: {len(wl)} 个")
+    for l in wl:
+        print(f"   · {l['name']} ({l['count']} 词)")
     print()
 
-    server = http.server.HTTPServer(('127.0.0.1', PORT), StoryHandler)
+    server = http.server.HTTPServer(('127.0.0.1', PORT), WordWeaveHandler)
     print(f"✅ 服务器已启动 → http://localhost:{PORT}")
-    print()
     try:
         server.serve_forever()
     except KeyboardInterrupt:
