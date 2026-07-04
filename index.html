@@ -86,14 +86,39 @@ h1{font-size:1.7rem;color:var(--head)}
   </div>
   <p class="subtitle" id="modeSubtitle">单词故事生成器 · 上传你的词库，AI 编故事</p>
 
-  <!-- Setup: API Key -->
+  <!-- Setup: API Config -->
   <div class="setup-card hidden" id="setupCard">
-    <h2>🔑 首次使用</h2>
-    <p style="color:var(--dim);margin:12px 0;">输入你的 DeepSeek API Key（仅存在你的浏览器里）</p>
-    <input type="password" id="apiKeyInput" placeholder="sk-...">
-    <button class="btn" onclick="saveKey()">保存</button>
-    <button class="btn-sm danger" style="margin-left:8px;" onclick="clearKey()">🗑 清除 Key</button>
-    <p class="hint">在 <a href="https://platform.deepseek.com/api_keys" target="_blank" style="color:var(--blue);">platform.deepseek.com</a> 获取</p>
+    <h2>🔑 API 设置</h2>
+    <p style="color:var(--dim);margin:8px 0 16px;">配置后仅存在你的浏览器里，不上传任何服务器</p>
+
+    <div style="text-align:left;margin-bottom:12px;">
+      <label style="color:var(--dim);font-size:.85rem;">供应商</label>
+      <select id="providerSelect" onchange="onProviderChange()" style="width:100%;padding:8px;margin-top:4px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;font-size:.9rem;">
+        <option value="deepseek">DeepSeek</option>
+        <option value="openai">OpenAI</option>
+        <option value="custom">自定义 (OpenAI 兼容)</option>
+      </select>
+    </div>
+
+    <div id="customUrlRow" class="hidden" style="text-align:left;margin-bottom:12px;">
+      <label style="color:var(--dim);font-size:.85rem;">API 地址</label>
+      <input type="text" id="customBaseUrl" placeholder="https://api.openai.com/v1" style="width:100%;padding:8px;margin-top:4px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;font-size:.9rem;">
+    </div>
+
+    <div style="text-align:left;margin-bottom:12px;">
+      <label style="color:var(--dim);font-size:.85rem;">API Key</label>
+      <input type="password" id="apiKeyInput" placeholder="sk-..." style="width:100%;padding:8px;margin-top:4px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;font-size:.9rem;">
+    </div>
+
+    <div style="text-align:left;margin-bottom:12px;">
+      <label style="color:var(--dim);font-size:.85rem;">模型</label>
+      <select id="modelSelect" style="width:100%;padding:8px;margin-top:4px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;font-size:.9rem;"></select>
+    </div>
+
+    <div style="display:flex;gap:8px;justify-content:center;margin-top:16px;">
+      <button class="btn" onclick="saveSettings()">💾 保存</button>
+      <button class="btn-sm danger" onclick="clearKey()">🗑 清除</button>
+    </div>
   </div>
 
   <!-- Toast & Popup -->
@@ -1899,15 +1924,34 @@ preclude`.trim().split('\n').filter(w => w);
 
 // ====== STATE ======
 let apiKey = localStorage.getItem('dw_key') || '';
+let apiProvider = localStorage.getItem('dw_provider') || 'deepseek';
+let apiBase = localStorage.getItem('dw_base') || '';
+let apiModel = localStorage.getItem('dw_model') || '';
 let currentList = localStorage.getItem('dw_list') || 'TD_SAT_Golden_Words';
 let grammarLoaded = false;
 
-// ====== API ======
-async function callDeepSeek(messages, temp=0.9, maxTok=800) {
-  const r = await fetch('https://api.deepseek.com/v1/chat/completions', {
+const MODEL_PRESETS = {
+  deepseek: ['deepseek-chat', 'deepseek-reasoner'],
+  openai: ['gpt-4o-mini', 'gpt-4o', 'gpt-4.1-nano'],
+  custom: []
+};
+
+function getBaseUrl() {
+  if (apiProvider === 'deepseek') return 'https://api.deepseek.com/v1';
+  if (apiProvider === 'openai') return 'https://api.openai.com/v1';
+  return apiBase || 'https://api.openai.com/v1';
+}
+
+function getModel() {
+  return apiModel || MODEL_PRESETS[apiProvider]?.[0] || 'deepseek-chat';
+}
+
+// ====== API CALL ======
+async function callAI(messages, temp=0.9, maxTok=800) {
+  const r = await fetch(getBaseUrl() + '/chat/completions', {
     method: 'POST',
     headers: {'Content-Type':'application/json','Authorization':'Bearer '+apiKey},
-    body: JSON.stringify({model:'deepseek-chat', messages, temperature:temp, max_tokens:maxTok})
+    body: JSON.stringify({model: getModel(), messages, temperature:temp, max_tokens:maxTok})
   });
   if (!r.ok) throw new Error(`API ${r.status}: ${await r.text()}`);
   return r.json();
@@ -1953,36 +1997,68 @@ function sampleWords(arr, n=12) {
 }
 
 // ====== SETUP ======
+// ====== SETTINGS ======
 function checkSetup() {
   if (!apiKey) {
     document.getElementById('modeVocab').classList.add('hidden');
     document.getElementById('modeGrammar').classList.add('hidden');
     document.getElementById('setupCard').classList.remove('hidden');
+    populateSettings();
     return false;
   }
   document.getElementById('setupCard').classList.add('hidden');
   return true;
 }
 
-function saveKey() {
+function populateSettings() {
+  document.getElementById('providerSelect').value = apiProvider;
+  document.getElementById('apiKeyInput').value = apiKey || '';
+  document.getElementById('customBaseUrl').value = apiBase || '';
+  onProviderChange();
+}
+
+function onProviderChange() {
+  const p = document.getElementById('providerSelect').value;
+  document.getElementById('customUrlRow').classList.toggle('hidden', p !== 'custom');
+  const sel = document.getElementById('modelSelect');
+  const presets = MODEL_PRESETS[p] || [];
+  sel.innerHTML = (p === 'custom' ? ['gpt-4o-mini', 'gpt-4o', 'deepseek-chat', 'claude-3-haiku'] : presets)
+    .map(m => `<option value="${m}" ${m === apiModel ? 'selected' : ''}>${m}</option>`).join('');
+  if (p === 'custom') sel.innerHTML += '<option value="__other__">其他（手动输入）</option>';
+}
+
+function saveSettings() {
   apiKey = document.getElementById('apiKeyInput').value.trim();
   if (!apiKey) return toast('请输入 API Key');
+  apiProvider = document.getElementById('providerSelect').value;
+  apiBase = document.getElementById('customBaseUrl').value.trim();
+  let model = document.getElementById('modelSelect').value;
+  if (model === '__other__') {
+    model = prompt('输入模型名称:', '');
+    if (!model) return;
+  }
+  apiModel = model;
+
   localStorage.setItem('dw_key', apiKey);
+  localStorage.setItem('dw_provider', apiProvider);
+  localStorage.setItem('dw_base', apiBase);
+  localStorage.setItem('dw_model', apiModel);
+
   document.getElementById('setupCard').classList.add('hidden');
   document.getElementById('modeVocab').classList.remove('hidden');
   initVocab();
-  toast('API Key 已保存');
+  toast('✅ 设置已保存 — ' + apiProvider + ' / ' + apiModel);
 }
 
 function showSettings() {
+  populateSettings();
   document.getElementById('setupCard').classList.toggle('hidden');
-  document.getElementById('apiKeyInput').value = apiKey || '';
 }
 
 function clearKey() {
-  if (!confirm('确定清除 API Key？')) return;
-  localStorage.removeItem('dw_key');
-  apiKey = '';
+  if (!confirm('确定清除所有 API 设置？')) return;
+  ['dw_key','dw_provider','dw_base','dw_model'].forEach(k => localStorage.removeItem(k));
+  apiKey = ''; apiProvider = 'deepseek'; apiBase = ''; apiModel = '';
   location.reload();
 }
 
@@ -2102,7 +2178,7 @@ async function generateVocabStory() {
   document.getElementById('storyArea').innerHTML = '<div class="loading-text">⏳ <span class="spinner"></span> AI 正在编故事...</div>';
   try {
     const sample = sampleWords(words, 12);
-    const resp = await callDeepSeek([
+    const resp = await callAI([
       {role:'system', content:`Write a short story (100-150 words) naturally using ALL these words: ${sample.join(', ')}. Reply in JSON: {"story":"...","all_words":{"word":"中文释义",...},"chinese":"全文中文翻译"}. all_words: Chinese translation for EVERY word in the story (lowercase key, 2-6 Chinese chars value). Story must be plain text.`},
       {role:'user', content:'Write the story.'}
     ], 0.9, 2000);
@@ -2153,7 +2229,7 @@ async function loadGrammarStory() {
   storyEl.innerHTML = ''; pointsEl.innerHTML = ''; pointsEl.classList.add('hidden'); chineseEl.classList.add('hidden'); loadingEl.classList.remove('hidden');
 
   try {
-    const resp = await callDeepSeek([
+    const resp = await callAI([
       {role:'user', content:`You write dark comedy. Follow these rules EXACTLY.
 
 VOCABULARY: Use ONLY words a 10-year-old native English speaker would know. BANNED: eulogy, deceased, crematorium, mortician, embalmed, casket, probate, bequeath, inheritance, toupee, trowel, urn, epoxy, pivot, grudge, technically — and any formal/SAT word. ALLOWED only simple verbs/nouns/adjectives.
