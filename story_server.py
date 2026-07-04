@@ -115,7 +115,7 @@ IMPORTANT:
             {"role": "user", "content": user_prompt}
         ],
         "temperature": 0.9,
-        "max_tokens": 800
+        "max_tokens": 2000
     }
 
     req = urllib.request.Request(
@@ -139,7 +139,27 @@ IMPORTANT:
             content = content.strip()
         if content.startswith("'") and content.endswith("'"):
             content = content[1:-1]
-        result = json.loads(content)
+
+        # Robust JSON parse with fallback
+        try:
+            result = json.loads(content)
+        except json.JSONDecodeError:
+            # Try to recover: extract story and chinese by regex
+            result = {}
+            story_match = re.search(r'"story"\s*:\s*"((?:[^"\\]|\\.)*)"', content, re.DOTALL)
+            if story_match:
+                result['story'] = story_match.group(1).replace('\\n', '\n').replace('\\"', '"')
+            chinese_match = re.search(r'"chinese"\s*:\s*"((?:[^"\\]|\\.)*)"', content, re.DOTALL)
+            if chinese_match:
+                result['chinese'] = chinese_match.group(1).replace('\\n', '\n').replace('\\"', '"')
+            # Try to parse partial all_words
+            all_words = {}
+            for m in re.finditer(r'"(\w+)"\s*:\s*"((?:[^"\\]|\\.)*)"', content):
+                all_words[m.group(1).lower()] = m.group(2)
+            result['all_words'] = all_words if all_words else {}
+            if not result.get('story'):
+                raise ValueError("Could not recover story from response")
+
         story = result.get('story', result.get('story_text', ''))
         all_words = result.get('all_words', result.get('translations', {}))
         chinese = result.get('chinese', result.get('chinese_translation', ''))
