@@ -88,18 +88,22 @@ def generate_story(words):
 The story MUST naturally incorporate ALL of the provided vocabulary words.
 Make the story coherent, interesting, and appropriate for a high school student.
 
-After the story, you MUST provide the Chinese translation for each vocabulary word used.
+After the story, provide:
+1. Chinese translation for each vocabulary word used
+2. A full Chinese translation of the entire story (natural, flowing Chinese)
 
 Reply in this exact JSON format:
 {
   "story": "The full story text here...",
-  "translations": {"WORD1": "中文释义1", "WORD2": "中文释义2", ...}
+  "translations": {"WORD1": "释义1", "WORD2": "释义2", ...},
+  "chinese": "全文中文翻译"
 }
 
 IMPORTANT: 
 - The story text must NOT contain any markdown, HTML tags, or special formatting. Just plain English text.
 - Each word in "translations" must match exactly the words provided.
-- Chinese translations should be concise (2-6 characters)."""
+- Word translations should be concise (2-6 characters).
+- "chinese" should be a natural, paragraph-length Chinese translation of the entire story."""
 
     user_prompt = f"Vocabulary words to use: {word_list}\n\nWrite a story that naturally includes ALL of these words. Make it interesting and natural-sounding."
 
@@ -137,7 +141,8 @@ IMPORTANT:
         result = json.loads(content)
         story = result.get('story', result.get('story_text', ''))
         translations = result.get('translations', result.get('words', {}))
-        return story, translations
+        chinese = result.get('chinese', result.get('chinese_translation', ''))
+        return story, translations, chinese
 
 
 def format_story(story_text, words, translations):
@@ -150,7 +155,7 @@ def format_story(story_text, words, translations):
         story_html = pattern.sub(r'<b>\1</b>', story_html)
         if zh:
             translation_html = pattern.sub(
-                lambda m: f'<b>{m.group(1)}</b><span class="zh">（{zh}）</span>',
+                lambda m: f'<b class="vocab" data-zh="{zh}" onclick="showPopup(event, this)">{m.group(1)}</b><span class="zh">（{zh}）</span>',
                 translation_html
             )
         else:
@@ -213,6 +218,15 @@ PAGE_HTML = r"""<!DOCTYPE html>
   .spinner { display: inline-block; width: 18px; height: 18px; border: 2px solid var(--dim); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: middle; margin-right: 6px; }
   @keyframes spin { to { transform: rotate(360deg); } }
   .loading-text { color: var(--dim); font-style: italic; }
+
+  /* --- Popup --- */
+  .vocab-popup { position: fixed; background: #1a1f2e; border: 1px solid var(--accent); border-radius: 8px; padding: 8px 14px; color: #fff; font-size: 0.9rem; z-index: 9999; pointer-events: none; opacity: 0; transform: translateY(4px); transition: opacity 0.15s, transform 0.15s; box-shadow: 0 4px 16px rgba(0,0,0,0.5); max-width: 220px; text-align: center; }
+  .vocab-popup.show { opacity: 1; transform: translateY(0); }
+  .vocab-popup .zh-big { font-size: 1.3rem; font-weight: 700; color: var(--green); }
+  .vocab-popup .en-sm { font-size: 0.8rem; color: var(--dim); margin-top: 2px; }
+  .vocab { cursor: pointer; border-bottom: 1px dashed var(--accent); }
+  .vocab:hover { background: rgba(255,166,87,0.15); border-radius: 3px; }
+
 </style>
 </head>
 <body>
@@ -222,6 +236,9 @@ PAGE_HTML = r"""<!DOCTYPE html>
 
   <!-- Toast -->
   <div class="toast" id="toast"></div>
+
+  <!-- Vocab popup -->
+  <div class="vocab-popup" id="vocabPopup"><div class="zh-big"></div><div class="en-sm"></div></div>
 
   <!-- Upload area -->
   <div class="upload-area" id="uploadArea" onclick="document.getElementById('fileInput').click()">
@@ -336,6 +353,34 @@ ua.addEventListener('drop', e => {
 });
 
 fetchLists();
+
+// --- Vocab popup ---
+let popupTimer = null;
+const popup = document.getElementById('vocabPopup');
+
+function showPopup(e, el) {
+  e.stopPropagation();
+  const zh = el.getAttribute('data-zh');
+  const en = el.textContent;
+  popup.querySelector('.zh-big').textContent = zh;
+  popup.querySelector('.en-sm').textContent = en;
+
+  const rect = el.getBoundingClientRect();
+  let top = rect.top - popup.offsetHeight - 8;
+  let left = rect.left + rect.width/2 - popup.offsetWidth/2;
+  if (top < 8) top = rect.bottom + 8;
+  if (left < 8) left = 8;
+  if (left + popup.offsetWidth > window.innerWidth - 8) left = window.innerWidth - popup.offsetWidth - 8;
+
+  popup.style.top = top + 'px';
+  popup.style.left = left + 'px';
+  popup.classList.add('show');
+
+  clearTimeout(popupTimer);
+  popupTimer = setTimeout(() => popup.classList.remove('show'), 2500);
+}
+
+document.addEventListener('click', () => popup.classList.remove('show'));
 </script>
 </body>
 </html>"""
@@ -345,8 +390,10 @@ STORY_SECTION = """
   <div class="words-bar">{word_tags}</div>
   <div class="section-title">📝 英文故事（目标单词 <b>加粗</b>）</div>
   <div class="story">{story_html}</div>
-  <div class="section-title">🔤 带中文释义</div>
-  <div class="translation">{translation_html}</div>
+  <div class="section-title">🔤 中英对照（点击单词看释义）</div>
+  <div class="translation" id="transBox">{translation_html}</div>
+  <div class="section-title">🇨🇳 全文中文翻译</div>
+  <div class="translation chinese">{chinese_html}</div>
 """
 
 ERROR_SECTION = """
@@ -354,17 +401,19 @@ ERROR_SECTION = """
 """
 
 
-def build_story_html(story_text, translations, words):
+def build_story_html(story_text, translations, chinese, words):
     story_html, translation_html = format_story(story_text, words, translations)
     story_html = story_html.replace('\n\n', '</p><p>').replace('\n', '<br>')
     story_html = f'<p>{story_html}</p>'
     translation_html = translation_html.replace('\n\n', '</p><p>').replace('\n', '<br>')
     translation_html = f'<p>{translation_html}</p>'
+    chinese_html = f'<p>{chinese.replace(chr(10), "</p><p>")}</p>' if chinese else '<p style="color:var(--dim);">（未生成）</p>'
     word_tags = '\n    '.join(f'<span>{w}</span>' for w in words)
     return STORY_SECTION.format(
         word_tags=word_tags,
         story_html=story_html,
-        translation_html=translation_html
+        translation_html=translation_html,
+        chinese_html=chinese_html
     )
 
 
@@ -422,8 +471,8 @@ class WordWeaveHandler(http.server.BaseHTTPRequestHandler):
                 try:
                     sample = random.sample(words, min(WORDS_PER_STORY, len(words)))
                     print(f"\n📝 [{active_list['name']}] Generating story with: {', '.join(sample)}")
-                    story_text, translations = generate_story(sample)
-                    story_section = build_story_html(story_text, translations, sample)
+                    story_text, translations, chinese = generate_story(sample)
+                    story_section = build_story_html(story_text, translations, chinese, sample)
                     print(f"✅ Story generated ({len(story_text.split())} words)")
                 except Exception as e:
                     story_section = ERROR_SECTION.format(error=str(e))
