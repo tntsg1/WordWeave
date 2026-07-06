@@ -1991,13 +1991,14 @@ function getUserLists() {
 function saveUserLists(lists) { localStorage.setItem('dw_user_lists', JSON.stringify(lists)); }
 
 function getAllLists() {
-  const lists = [{name:'TD_SAT_Golden_Words', count:DEFAULT_WORDS.length}];
+  const lists = [{name:'TD_SAT_Golden_Words', count:DEFAULT_WORDS.length}, {name:'Barron 3500', count:BARRON_WORDS.length}];
   getUserLists().forEach(l => lists.push({name:l.name, count:l.words.length}));
   return lists;
 }
 
 function getWords(name) {
   if (name === 'TD_SAT_Golden_Words') return [...DEFAULT_WORDS];
+  if (name === 'Barron 3500') return [...BARRON_WORDS];
   const ul = getUserLists().find(l => l.name === name);
   return ul ? [...ul.words] : [];
 }
